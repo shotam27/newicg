@@ -1,0 +1,906 @@
+{
+  "cards": [
+    {
+      "number": 1,
+      "id": "gorilla",
+      "name": "ゴリラ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "一匹疲労させる。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "同種を一枚疲労させ、同種を一枚生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "同種を一枚疲労させ、疲労済を追放する"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が6を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "id": "lion",
+      "name": "ライオン",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "増加IP2消費し、一匹追放する"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "IP10消費し、一匹追放する。自身の疲労取り除く"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "追放されたカードを好きなだけ相手フィールドに置く。相手のカード全ての疲労を取り除く。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が6を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "id": "gazelle",
+      "name": "ガゼル",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "獲得時",
+          "description": "中立フィールドの同種を回復する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "同種を一枚疲労させ、同種を一枚生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "強化",
+          "description": "同種を疲労させ、追放から一匹獲得する"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "自フィールドにカードが10枚ある場合。"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "id": "cactus",
+      "name": "サボテン",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "反応",
+          "description": "IP＋2"
+        },
+        {
+          "cost": 2,
+          "type": "獲得時",
+          "description": "増加IP＋1"
+        },
+        {
+          "cost": 3,
+          "type": "敵ターン開始時",
+          "description": "一匹疲労させる"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "累計IPが40を超えている場合。"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "id": "bee",
+      "name": "ハチ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "一匹疲労させる。"
+        },
+        {
+          "cost": 1,
+          "type": "強化",
+          "description": "自分の反応持ちカードの効果を発動できる。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "自分のハチを二匹疲労させ、一匹追放する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が6を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "id": "dugong",
+      "name": "ジュゴン",
+      "traits": [
+        "水棲"
+      ],
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "水棲",
+          "description": "獲得時、中立にホオジロサメがいない場合、中立にホオジロサメを生成する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "5IP消費し、ジュゴンを生成する"
+        },
+        {
+          "cost": 3,
+          "type": "強化",
+          "description": "相手の反応持ちの数だけ、ジュゴンを回復させる"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "自フィールドに水棲持ちが8体いる場合。"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "id": "seaweed",
+      "name": "ワカメ",
+      "traits": [
+        "水棲"
+      ],
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "水棲",
+          "description": "獲得時、中立にジュゴンがいない場合、中立にジュゴンを生成する。"
+        },
+        {
+          "cost": 1,
+          "type": "反応",
+          "description": "IP＋５"
+        },
+        {
+          "cost": 2,
+          "type": "敵ターン開始時",
+          "description": "１ターンに一度のみ、相手フィールドにワカメを生成してもよい。そうした場合、IP＋5"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "累計IPが40以上の場合。"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "id": "tuna",
+      "name": "マグロ",
+      "traits": [
+        "水棲"
+      ],
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "水棲",
+          "description": "獲得時、IP＋5。"
+        },
+        {
+          "cost": 1,
+          "type": "永続",
+          "description": "ラウンド終了時、このカードが疲労していない場合、追放する"
+        },
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "自分のIPを3消費し、相手のカードを疲労させる。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が6を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "id": "cordyceps",
+      "name": "とうちゅうかそう",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "自分のIPを5消費し、相手のカードを疲労させる。"
+        },
+        {
+          "cost": 2,
+          "type": "反応",
+          "description": "IP＋5"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "相手の侵略持ちカードを発動させる。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "IP40以上"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "id": "mushroom",
+      "name": "ブナシメジ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "強化",
+          "description": "自フィールドに反応持ちがいる場合、5IP消費してブナシメジを生成する"
+        },
+        {
+          "cost": 2,
+          "type": "永続",
+          "description": "１ラウンドにつき一度のみ、自分の反応持ちが追放された場合、自分のブナシメジを一体追放しなければならない"
+        },
+        {
+          "cost": 3,
+          "type": "反応",
+          "description": "IP＋5"
+        },
+        {
+          "cost": 7,
+          "type": "勝利",
+          "description": "IP40以上"
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "id": "hyena",
+      "name": "ハイエナ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "自分が他に侵略持ちを所持している場合、相手を一体疲労させる。"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "同種を疲労させ、疲労済を一体追放する。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "同種を疲労させ、疲労済を一体追放する。同種を生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が6を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "id": "red_eared_slider",
+      "name": "Mアカミミガメ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "永続",
+          "description": "ラウンド終了時、自フィールドに同種以外の追放可能なカードがある場合、それを一体追放しなければならない。"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "相手のフィールドにMアカミミガメを一体生成する。自分はMアカミミガメを一体追放する。"
+        },
+        {
+          "cost": 3,
+          "type": "強化",
+          "description": "同種を一体疲労させ、同種を生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "追放が10体になった時。"
+        }
+      ]
+    },
+    {
+      "number": 13,
+      "id": "coral",
+      "name": "サンゴ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "永続",
+          "description": "このカードはカードの効果で追放されない。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "同種を疲労させ、追放から獲得する。追放が０の場合、サンゴを生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "反応",
+          "description": "中立から好きなカードを選び、疲労させる。疲労させたカードを追放に置く。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "IP40以上。"
+        }
+      ]
+    },
+    {
+      "number": 14,
+      "id": "tulip",
+      "name": "チューリップ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "反応",
+          "description": "IP＋2。この効果で疲労しない。"
+        },
+        {
+          "cost": 1,
+          "type": "獲得時",
+          "description": "このカードを回復する。"
+        },
+        {
+          "cost": 3,
+          "type": "獲得時",
+          "description": "ハチを獲得する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "IP40以上。"
+        }
+      ]
+    },
+    {
+      "number": 15,
+      "id": "dandelion",
+      "name": "タンポポ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "追放時",
+          "description": "IP＋10。中立フィールドの同種を回復させる。"
+        },
+        {
+          "cost": 2,
+          "type": "反応",
+          "description": "IP＋5"
+        },
+        {
+          "cost": 3,
+          "type": "反応",
+          "description": "IP＋3。この効果で疲労しない。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "IP40以上の時。"
+        }
+      ]
+    },
+    {
+      "number": 16,
+      "id": "rabbit",
+      "name": "ウサギ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "強化",
+          "description": "自フィールドに同種がいない場合、同種を獲得する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "同種を疲労させ、同種を獲得する。"
+        },
+        {
+          "cost": 3,
+          "type": "強化",
+          "description": "5IP消費して同種を獲得する。この効果で疲労しない。"
+        },
+        {
+          "cost": 10,
+          "type": "勝利",
+          "description": "条件なし。"
+        }
+      ]
+    },
+    {
+      "number": 17,
+      "id": "fly",
+      "name": "ハエ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "獲得時",
+          "description": "このカードを回復する。"
+        },
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "一体疲労させる。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "相手のフィールドにフントークンがある場合、2体疲労させる。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が7を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 18,
+      "id": "great_white_shark",
+      "name": "ホオジロザメ",
+      "traits": [
+        "水棲"
+      ],
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "水棲",
+          "description": "獲得時、中立にシャチがいない場合、シャチを生成する。"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "自分は5IP消費する。相手のフィールドから一体を追放する。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "追放から一体除外する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が6を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 19,
+      "id": "elysia_chlorotica",
+      "name": "Eクロロティカ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "強化",
+          "description": "自分の反応持ちを一体追放し、このカードを生成する。5IP獲得する。"
+        },
+        {
+          "cost": 2,
+          "type": "反応",
+          "description": "IP＋5"
+        },
+        {
+          "cost": 3,
+          "type": "強化",
+          "description": "反応持ちを一体疲労させ、このカードを生成する。5IP獲得する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "反応持ちが６体以上いる場合。"
+        }
+      ]
+    },
+    {
+      "number": 20,
+      "id": "gibbon",
+      "name": "テナガザル",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "自分はカードを一枚を破棄する。破棄したカードを相手フィールドに生成する。自分は5IP獲得する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "フントークンを生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "自分はカードを一枚を破棄する。破棄したカードを相手フィールドに生成する。この効果で疲労しない。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "１ラウンドで侵略した回数が7を超えていた場合。"
+        }
+      ]
+    },
+    {
+      "number": 21,
+      "id": "parrot",
+      "name": "オウム",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "一体疲労させる。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "同種を一体疲労させ、同種を生成する"
+        },
+        {
+          "cost": 3,
+          "type": "獲得時",
+          "description": "中立フィールドの同種を回復する。"
+        },
+        {
+          "cost": 5,
+          "type": "勝利",
+          "description": "条件なし。"
+        }
+      ]
+    },
+    {
+      "number": 22,
+      "id": "skunk",
+      "name": "スカンク",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "一体疲労させる。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "フントークンを生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "フントークンを破棄し、一体追放する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "フントークンを5以上所持している場合。"
+        }
+      ]
+    },
+    {
+      "number": 23,
+      "id": "mosquito",
+      "name": "カ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "獲得時",
+          "description": "中立フィールドの同種を回復する。"
+        },
+        {
+          "cost": 2,
+          "type": "獲得時",
+          "description": "このカードを回復する。"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "一体疲労させる。"
+        },
+        {
+          "cost": 10,
+          "type": "勝利",
+          "description": "条件なし。"
+        }
+      ]
+    },
+    {
+      "number": 24,
+      "id": "super_alpaca",
+      "name": "超超アルパカ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "5IP消費し、一体追放する。"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "一体追放する。同種を生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "獲得時",
+          "description": "このカードを回復する。"
+        },
+        {
+          "cost": 4,
+          "type": "勝利",
+          "description": "同じターンに６回侵略した場合。"
+        }
+      ]
+    },
+    {
+      "number": 25,
+      "id": "orca",
+      "name": "シャチ",
+      "traits": [
+        "水棲"
+      ],
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "水棲",
+          "description": "中立にザトウクジラがいない場合、ザトウクジラを生成する。"
+        },
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "一体疲労させる。"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "自分は5IP消費し、相手フィールドから一体追放する。"
+        },
+        {
+          "cost": 4,
+          "type": "勝利",
+          "description": "同じターンに６回侵略した場合。"
+        }
+      ]
+    },
+    {
+      "number": 26,
+      "id": "humpback_whale",
+      "name": "ザトウクジラ",
+      "traits": [
+        "水棲"
+      ],
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "水棲",
+          "description": "中立にワカメがいない場合、ワカメを生成する。"
+        },
+        {
+          "cost": 1,
+          "type": "永続",
+          "description": "このカードはカードの効果で追放されない。"
+        },
+        {
+          "cost": 2,
+          "type": "獲得時",
+          "description": "自フィールドにいるザトウクジラ以外のカードを追放する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "中立に10枚カードがある時。"
+        }
+      ]
+    },
+    {
+      "number": 27,
+      "id": "orca_type_b",
+      "name": "シャチ typeB",
+      "traits": [
+        "水棲"
+      ],
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "水棲",
+          "description": "中立にザトウクジラがいない場合、ザトウクジラを生成する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "中立にジュゴンがいない場合、ジュゴンを生成する。そうした場合、IP＋5"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "中立から一体疲労させる。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "同じターンに６回侵略した場合。"
+        }
+      ]
+    },
+    {
+      "number": 28,
+      "id": "tiger",
+      "name": "トラ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "侵略",
+          "description": "一体疲労させる。"
+        },
+        {
+          "cost": 2,
+          "type": "侵略",
+          "description": "自分は15IP消費し、相手のフィールドから一体追放する。その後、このカードを回復する。"
+        },
+        {
+          "cost": 3,
+          "type": "侵略",
+          "description": "追放から一体破棄する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "同じターンに６回侵略した場合。"
+        }
+      ]
+    },
+    {
+      "number": 29,
+      "id": "crane",
+      "name": "ツル",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "獲得時",
+          "description": "追放から獲得時、＋5IP"
+        },
+        {
+          "cost": 1,
+          "type": "獲得時",
+          "description": "中立にいない場合、中立にMアカミミガメを生成する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "自分のカードを一枚追放する。ニホンジカを生成する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "自フィールドが７枚以上。"
+        }
+      ]
+    },
+    {
+      "number": 30,
+      "id": "japanese_deer",
+      "name": "ニホンジカ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "強化",
+          "description": "追放フィールドにニホンジカを生成する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "同種を疲労させ、追放から一匹獲得する"
+        },
+        {
+          "cost": 3,
+          "type": "強化",
+          "description": "追放から一匹獲得する。"
+        },
+        {
+          "cost": 3,
+          "type": "勝利",
+          "description": "自フィールドが8枚以上。"
+        }
+      ]
+    },
+    {
+      "number": 31,
+      "id": "okapi",
+      "name": "オカピ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "獲得時",
+          "description": "中立にいない場合、中立にライオンを生成する。"
+        },
+        {
+          "cost": 1,
+          "type": "強化",
+          "description": "追放に同種を生成する。"
+        },
+        {
+          "cost": 2,
+          "type": "強化",
+          "description": "同種を疲労させ、追放から一枚獲得する。"
+        },
+        {
+          "cost": 4,
+          "type": "勝利",
+          "description": "条件なし"
+        }
+      ]
+    }
+  ],
+  "gameRules": {
+    "fields": [
+      {
+        "name": "敵のフィールド",
+        "type": "opponent",
+        "visible": true
+      },
+      {
+        "name": "中立フィールド",
+        "type": "neutral",
+        "visible": true,
+        "initialCards": 10,
+        "cardSource": "random"
+      },
+      {
+        "name": "味方フィールド",
+        "type": "player",
+        "visible": true
+      },
+      {
+        "name": "追放フィールド",
+        "type": "exile",
+        "visible": false,
+        "initiallyHidden": true
+      }
+    ],
+    "turnSystem": {
+      "startingPoints": 10,
+      "pointsPerTurn": 10
+    },
+    "phases": [
+      {
+        "name": "オークションフェーズ",
+        "description": "両プレイヤーは中立フィールドから１枚カードを選択し、そのカードを獲得するために何ポイント支払うか決める",
+        "rules": [
+          {
+            "condition": "両プレイヤーが異なるカードを選んだ場合",
+            "action": "一方のプレイヤーが他方の倍以上支払う場合、倍支払うプレイヤーは他方が払うポイントを支払い、奪うことができる",
+            "name": "ハイジャック"
+          }
+        ]
+      }
+    ]
+  }
+}
