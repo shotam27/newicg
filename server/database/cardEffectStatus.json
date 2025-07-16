@@ -1,0 +1,61 @@
+{
+  "effectStatuses": {
+    "gorilla_0": {
+      "cardId": "gorilla",
+      "abilityIndex": 0,
+      "status": "working",
+      "lastTested": "2025-07-16T06:04:29.746Z",
+      "testCount": 4,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "1.ゴリラ_0": {
+      "cardId": "1.ゴリラ",
+      "abilityIndex": 0,
+      "status": "broken",
+      "lastTested": "2025-07-16T06:02:41.040Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "test"
+      ]
+    },
+    "seaweed_0": {
+      "cardId": "seaweed",
+      "abilityIndex": 0,
+      "status": "broken",
+      "lastTested": "2025-07-16T06:04:44.322Z",
+      "testCount": 2,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "seaweed_2": {
+      "cardId": "seaweed",
+      "abilityIndex": 2,
+      "status": "broken",
+      "lastTested": "2025-07-16T06:04:55.710Z",
+      "testCount": 2,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "seaweed_3": {
+      "cardId": "seaweed",
+      "abilityIndex": 3,
+      "status": "broken",
+      "lastTested": "2025-07-16T06:04:58.410Z",
+      "testCount": 2,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    }
+  },
+  "lastUpdated": "2025-07-16T06:04:58.410Z",
+  "version": "1.0"
+}

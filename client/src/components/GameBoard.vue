@@ -21,7 +21,7 @@
       :player-field="playerField"
       @card-click="$emit('card-click', $event)"
       @card-detail="$emit('card-detail', $event)"
-      @use-ability="$emit('use-ability', $event)"
+      @use-ability="(card, ability) => $emit('use-ability', card, ability)"
     />
 
     <!-- 中立フィールド -->
@@ -35,7 +35,7 @@
       :player-field="playerField"
       @card-click="$emit('card-click', $event)"
       @card-detail="$emit('card-detail', $event)"
-      @use-ability="$emit('use-ability', $event)"
+      @use-ability="(card, ability) => $emit('use-ability', card, ability)"
     />
 
     <!-- オークションパネル -->
@@ -57,7 +57,7 @@
       :player-field="playerField"
       @card-click="$emit('card-click', $event)"
       @card-detail="$emit('card-detail', $event)"
-      @use-ability="$emit('use-ability', $event)"
+      @use-ability="(card, ability) => $emit('use-ability', card, ability)"
     />
 
     <!-- アクションボタン -->

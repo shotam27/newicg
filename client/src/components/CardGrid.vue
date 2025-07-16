@@ -40,12 +40,20 @@
 
         <!-- アビリティボタン（プレイヤーフィールドのみ） -->
         <div v-if="fieldType === 'player-field'" class="abilities">
+          <!-- デバッグ情報 -->
+          <div
+            class="debug-info"
+            style="font-size: 10px; color: #666; margin-bottom: 2px"
+          >
+            Phase: {{ currentPhase }} | MyTurn: {{ isMyTurn }} | CardCount:
+            {{ getCardCount(card.id) }}
+          </div>
           <button
             v-for="(ability, index) in card.abilities"
             :key="index"
             class="ability-btn"
             :class="{
-              'has-unimplemented': checkAbilityUnimplemented(ability),
+              'has-unimplemented': checkAbilityUnimplemented(card, ability, index),
             }"
             :disabled="
               getCardCount(card.id) < ability.cost ||
@@ -58,18 +66,46 @@
             <span class="ability-text"
               >{{ ability.type }} ({{ ability.cost }})</span
             >
+            <!-- 効果ステータス表示 -->
+            <span
+              class="effect-status-icon"
+              :style="{
+                color: getStatusColor(getEffectStatus(card.id, index).status),
+              }"
+              @click.stop="toggleEffectStatus(card.id, index)"
+              :title="`効果ステータス: ${
+                getEffectStatus(card.id, index).status
+              } (クリックで切り替え)`"
+            >
+              {{ getStatusIcon(getEffectStatus(card.id, index).status) }}
+            </span>
+            <!-- 無効理由のデバッグ表示 -->
+            <div
+              v-if="
+                getCardCount(card.id) < ability.cost ||
+                card.isFatigued ||
+                currentPhase !== 'playing' ||
+                !isMyTurn
+              "
+              style="font-size: 8px; color: red"
+            >
+              <span v-if="getCardCount(card.id) < ability.cost">枚数不足 </span>
+              <span v-if="card.isFatigued">疲労 </span>
+              <span v-if="currentPhase !== 'playing'">非プレイング </span>
+              <span v-if="!isMyTurn">非マイターン </span>
+            </div>
             <!-- アビリティボタンの未実装タグ -->
             <div
-              v-if="checkAbilityUnimplemented(ability)"
+              v-if="checkAbilityUnimplemented(card, ability, index)"
               class="ability-btn-badge"
-              :class="checkAbilityUnimplemented(ability).class"
+              :class="checkAbilityUnimplemented(card, ability, index).class"
               :title="
                 '未実装効果(優先度: ' +
-                checkAbilityUnimplemented(ability).priority +
+                checkAbilityUnimplemented(card, ability, index).priority +
                 ')'
               "
             >
-              {{ checkAbilityUnimplemented(ability).icon }}
+              {{ checkAbilityUnimplemented(card, ability, index).icon }}
             </div>
           </button>
         </div>
@@ -79,8 +115,16 @@
 </template>
 
 <script>
+import EffectStatusAPI from "../api/effectStatus.js";
+
 export default {
   name: "CardGrid",
+  data() {
+    return {
+      effectStatusAPI: new EffectStatusAPI(),
+      effectStatuses: {}, // カードID_アビリティインデックス をキーとするステータス
+    };
+  },
   props: {
     title: {
       type: String,
@@ -118,6 +162,28 @@ export default {
       return this.playerField.filter((card) => card.id === cardId).length;
     },
     checkUnimplementedEffects(card) {
+      if (!card.abilities) return null;
+
+      // DBベースのチェック（最優先）
+      for (let i = 0; i < card.abilities.length; i++) {
+        const key = `${card.id}_${i}`;
+        const effectStatus = this.effectStatuses[key];
+        
+        if (effectStatus && effectStatus.status === 'broken') {
+          return {
+            priority: "高",
+            class: "unimplemented-high",
+            icon: "🚨",
+            source: "DB"
+          };
+        }
+      }
+
+      // 従来のパターンマッチング（レガシー検出用）
+      return this.checkUnimplementedEffectsLegacy(card);
+    },
+
+    checkUnimplementedEffectsLegacy(card) {
       if (!card.abilities) return null;
 
       // 高優先度未実装効果のパターン
@@ -187,7 +253,25 @@ export default {
 
       return null;
     },
-    checkAbilityUnimplemented(ability) {
+    checkAbilityUnimplemented(card, ability, abilityIndex) {
+      // DBベースのチェック（最優先）
+      const key = `${card.id}_${abilityIndex}`;
+      const effectStatus = this.effectStatuses[key];
+      
+      if (effectStatus && effectStatus.status === 'broken') {
+        return {
+          priority: "高",
+          class: "unimplemented-high",
+          icon: "🚨",
+          source: "DB"
+        };
+      }
+
+      // 従来のパターンマッチング（レガシー検出用）
+      return this.checkAbilityUnimplementedLegacy(ability);
+    },
+
+    checkAbilityUnimplementedLegacy(ability) {
       const description = ability.description;
 
       // 高優先度未実装効果のパターン
@@ -251,6 +335,102 @@ export default {
       }
 
       return null;
+    },
+
+    // 効果ステータス関連メソッド
+    async loadEffectStatuses() {
+      for (const card of this.cards) {
+        if (card.abilities) {
+          for (let i = 0; i < card.abilities.length; i++) {
+            const key = `${card.id}_${i}`;
+            try {
+              const status = await this.effectStatusAPI.getEffectStatus(
+                card.id,
+                i
+              );
+              this.effectStatuses[key] = status;
+            } catch (error) {
+              console.error("効果ステータス読み込みエラー:", error);
+            }
+          }
+        }
+      }
+    },
+
+    getEffectStatus(cardId, abilityIndex) {
+      const key = `${cardId}_${abilityIndex}`;
+      return this.effectStatuses[key] || { status: "unknown" };
+    },
+
+    async toggleEffectStatus(cardId, abilityIndex) {
+      const currentStatus = this.getEffectStatus(cardId, abilityIndex);
+      let newStatus;
+
+      // working -> broken -> unknown -> working の循環
+      switch (currentStatus.status) {
+        case "working":
+          newStatus = "broken";
+          break;
+        case "broken":
+          newStatus = "unknown";
+          break;
+        default:
+          newStatus = "working";
+          break;
+      }
+
+      try {
+        const result = await this.effectStatusAPI.setEffectStatus(
+          cardId,
+          abilityIndex,
+          newStatus,
+          "user"
+        );
+        if (result.success) {
+          const key = `${cardId}_${abilityIndex}`;
+          this.effectStatuses[key] = {
+            ...currentStatus,
+            status: newStatus,
+          };
+        }
+      } catch (error) {
+        console.error("効果ステータス更新エラー:", error);
+      }
+    },
+
+    getStatusIcon(status) {
+      switch (status) {
+        case "working":
+          return "✅";
+        case "broken":
+          return "❌";
+        default:
+          return "❓";
+      }
+    },
+
+    getStatusColor(status) {
+      switch (status) {
+        case "working":
+          return "#4caf50";
+        case "broken":
+          return "#f44336";
+        default:
+          return "#9e9e9e";
+      }
+    },
+  },
+
+  mounted() {
+    this.loadEffectStatuses();
+  },
+
+  watch: {
+    cards: {
+      handler() {
+        this.loadEffectStatuses();
+      },
+      deep: true,
     },
   },
 };
@@ -451,5 +631,17 @@ export default {
 .ability-btn-badge.unimplemented-low {
   background: linear-gradient(135deg, #2196f3, #1976d2);
   color: white;
+}
+
+.effect-status-icon {
+  font-size: 12px;
+  margin-left: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.2s ease;
+}
+
+.effect-status-icon:hover {
+  transform: scale(1.2);
 }
 </style>

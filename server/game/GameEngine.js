@@ -1,7 +1,6 @@
-// ...existing code...
+const CardEffects = require('./CardEffects');
 
 class GameEngine {
-  // ...existing code...
 
   constructor(gameId, players, cardPool) {
     this.id = gameId;

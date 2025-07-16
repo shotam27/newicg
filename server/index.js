@@ -6,10 +6,14 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 const GameEngine = require('./game/GameEngine');
+const CardEffectStatusDB = require('./database/cardEffectStatus');
 const cardData = require('../cards.json');
 
 const app = express();
 const server = http.createServer(app);
+
+// 効果ステータスDB初期化
+const effectStatusDB = new CardEffectStatusDB();
 
 // 本番環境では静的ファイルを配信
 if (process.env.NODE_ENV === 'production') {
@@ -29,6 +33,41 @@ const io = socketIo(server, {
 
 app.use(cors());
 app.use(express.json());
+
+// カード効果ステータス API
+app.get('/api/effect-status/:cardId/:abilityIndex', (req, res) => {
+  const { cardId, abilityIndex } = req.params;
+  const status = effectStatusDB.getEffectStatus(cardId, parseInt(abilityIndex));
+  res.json(status);
+});
+
+app.post('/api/effect-status/:cardId/:abilityIndex', (req, res) => {
+  const { cardId, abilityIndex } = req.params;
+  const { status, reportedBy = 'manual' } = req.body;
+  
+  if (!['working', 'broken', 'unknown'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  
+  const success = effectStatusDB.setEffectStatus(cardId, parseInt(abilityIndex), status, reportedBy);
+  res.json({ success, status });
+});
+
+app.get('/api/effect-status/card/:cardId', (req, res) => {
+  const { cardId } = req.params;
+  const statuses = effectStatusDB.getCardEffectStatuses(cardId);
+  res.json(statuses);
+});
+
+app.get('/api/effect-status/statistics', (req, res) => {
+  const stats = effectStatusDB.getStatistics();
+  res.json(stats);
+});
+
+app.get('/api/effect-status/all', (req, res) => {
+  const allStatuses = effectStatusDB.getAllEffectStatuses();
+  res.json(allStatuses);
+});
 
 // ゲーム管理
 const games = new Map();

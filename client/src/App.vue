@@ -343,6 +343,18 @@ export default {
     },
 
     useAbility(card, ability) {
+      // パラメータの検証
+      if (!card) {
+        console.error("useAbility: card parameter is undefined");
+        this.addMessage("カード情報が不正です", "error");
+        return;
+      }
+      if (!ability) {
+        console.error("useAbility: ability parameter is undefined");
+        this.addMessage("アビリティ情報が不正です", "error");
+        return;
+      }
+
       // プレイングフェーズで自分のターンでのみ使用可能
       if (this.currentPhase !== "playing" || !this.isMyTurn) {
         this.addMessage("現在はアビリティを使用できません", "warning");

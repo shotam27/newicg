@@ -14,16 +14,16 @@
             <span class="ability-desc">{{ ability.description }}</span>
             <!-- オークションパネルの未実装チェック -->
             <div
-              v-if="checkAbilityUnimplemented(ability)"
+              v-if="checkAbilityUnimplemented(selectedCard, ability, index)"
               class="auction-ability-badge"
-              :class="checkAbilityUnimplemented(ability).class"
+              :class="checkAbilityUnimplemented(selectedCard, ability, index).class"
               :title="
                 '未実装効果(優先度: ' +
-                checkAbilityUnimplemented(ability).priority +
+                checkAbilityUnimplemented(selectedCard, ability, index).priority +
                 ')'
               "
             >
-              {{ checkAbilityUnimplemented(ability).icon }}
+              {{ checkAbilityUnimplemented(selectedCard, ability, index).icon }}
             </div>
           </div>
         </div>
@@ -49,6 +49,8 @@
 </template>
 
 <script>
+import EffectStatusAPI from "../api/effectStatus.js";
+
 export default {
   name: "AuctionPanel",
   props: {
@@ -68,19 +70,58 @@ export default {
   data() {
     return {
       bidAmount: 0,
+      effectStatusAPI: new EffectStatusAPI(),
+      effectStatuses: {},
     };
   },
   watch: {
     selectedCard(newCard) {
       if (newCard) {
         this.bidAmount = 1;
+        this.loadEffectStatusesForCard(newCard);
       } else {
         this.bidAmount = 0;
       }
     },
   },
   methods: {
-    checkAbilityUnimplemented(ability) {
+    async loadEffectStatusesForCard(card) {
+      if (card && card.abilities) {
+        for (let i = 0; i < card.abilities.length; i++) {
+          const key = `${card.id}_${i}`;
+          try {
+            const status = await this.effectStatusAPI.getEffectStatus(
+              card.id,
+              i
+            );
+            this.effectStatuses[key] = status;
+          } catch (error) {
+            console.error("効果ステータス読み込みエラー:", error);
+          }
+        }
+      }
+    },
+    checkAbilityUnimplemented(card, ability, abilityIndex) {
+      // DBベースのチェック（最優先）
+      if (card) {
+        const key = `${card.id}_${abilityIndex}`;
+        const effectStatus = this.effectStatuses[key];
+        
+        if (effectStatus && effectStatus.status === 'broken') {
+          return {
+            priority: "高",
+            class: "unimplemented-high",
+            icon: "🚨",
+            source: "DB"
+          };
+        }
+      }
+
+      // 従来のパターンマッチング（レガシー検出用）
+      return this.checkAbilityUnimplementedLegacy(ability);
+    },
+
+    checkAbilityUnimplementedLegacy(ability) {
       const description = ability.description;
 
       // 高優先度未実装効果のパターン

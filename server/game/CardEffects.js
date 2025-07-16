@@ -1,6 +1,25 @@
+const CardEffectStatusDB = require('../database/cardEffectStatus');
+
 class CardEffects {
   constructor(gameEngine) {
     this.game = gameEngine;
+    // 侵略回数追跡用（ラウンドごとにリセット）
+    this.invasionCount = {};
+    // 効果ステータスDB
+    this.statusDB = new CardEffectStatusDB();
+  }
+
+  startNewRound() {
+    this.invasionCount = {};
+  }
+
+  incrementInvasion(playerId) {
+    if (!this.invasionCount[playerId]) this.invasionCount[playerId] = 0;
+    this.invasionCount[playerId]++;
+  }
+
+  getInvasionCount(playerId) {
+    return this.invasionCount[playerId] || 0;
   }
 
   // カード獲得時効果（疲労状態に関係なく発動）
@@ -33,7 +52,8 @@ class CardEffects {
     });
     
     // 未実装効果のチェック
-    const unimplementedTag = this.checkUnimplementedEffect(ability);
+    // アビリティ実行前にステータスをチェック
+    const unimplementedTag = this.checkUnimplementedEffect(ability, cardId, abilityIndex);
     if (unimplementedTag) {
       console.warn('⚠️ 未実装効果が検出されました:', unimplementedTag);
       return { 
@@ -48,6 +68,8 @@ class CardEffects {
       switch (ability.type) {
         case '侵略':
           result = this.executeInvasion(player, card, ability);
+          // 侵略回数追跡
+          this.incrementInvasion(player.id);
           break;
         case '強化':
           result = this.executeEnhancement(player, card, ability);
@@ -71,7 +93,7 @@ class CardEffects {
           result = this.executeAquatic(player, card, ability);
           break;
         case '勝利':
-          result = { success: true, message: '勝利条件を確認中...' };
+          result = this.checkVictoryCondition(player, ability);
           break;
         default:
           result = { success: false, message: '未知の能力タイプです' };
@@ -79,6 +101,14 @@ class CardEffects {
       }
       
       console.log('CardEffects.executeAbility 結果:', result);
+      
+      // 効果実行結果をDBに記録
+      const abilityIndex = card.abilities.indexOf(ability);
+      if (abilityIndex !== -1) {
+        const status = result.success ? 'working' : 'broken';
+        this.statusDB.setEffectStatus(card.id, abilityIndex, status, player.name);
+        console.log(`効果ステータス記録: ${card.name} (${abilityIndex}) -> ${status}`);
+      }
       
       // 疲労回避効果のチェック（獲得時効果以外）
       if (ability.type !== '獲得時' && result.success) {
@@ -485,14 +515,47 @@ class CardEffects {
       return player.field.length >= requiredCount;
     }
 
-    // 侵略回数系（改良）
+    // 侵略回数系
     if (ability.description.includes('侵略した回数が') || ability.description.includes('１ラウンドで侵略した回数が')) {
       const invasionCountMatch = ability.description.match(/侵略した回数が(\d+)を?超えていた場合/);
       if (invasionCountMatch) {
         const requiredCount = parseInt(invasionCountMatch[1]);
-        // TODO: ターン内侵略回数の追跡機能が必要
-        // 実装簡略化のため、常にfalseを返す
-        return false;
+        return this.getInvasionCount(player.id) > requiredCount;
+      }
+    }
+    // 複数体疲労させる
+    const multiFatigueMatch = ability.description.match(/(\d+)体疲労させる/);
+    if (multiFatigueMatch) {
+      const count = parseInt(multiFatigueMatch[1]);
+      let fatigued = 0;
+      for (const c of player.field) {
+        if (!c.isFatigued && fatigued < count) {
+          c.isFatigued = true;
+          fatigued++;
+        }
+      }
+      return { success: true, message: `${fatigued}体疲労させました` };
+    }
+    // 中立フィールドの同種を回復する
+    if (ability.description.includes('中立フィールドの同種を回復する')) {
+      // 中立フィールドから同種カードを探して回復
+      const neutralField = this.game.neutralField || [];
+      let count = 0;
+      for (const nc of neutralField) {
+        if (nc.id === card.id && nc.isFatigued) {
+          nc.isFatigued = false;
+          count++;
+        }
+      }
+      return { success: true, message: `中立フィールドの同種${count}枚を回復しました` };
+    }
+    // 条件付き効果基盤: 自フィールドに同種がいない場合、同種を獲得する
+    if (ability.description.includes('自フィールドに同種がいない場合')) {
+      const hasSameType = player.field.some(c => c.id === card.id);
+      if (!hasSameType) {
+        const newCard = this.createCardCopy(card);
+        player.field.push(newCard);
+        return { success: true, message: `${card.name}を獲得しました（同種がいなかったため）` };
       }
     }
 
@@ -583,8 +646,29 @@ class CardEffects {
     return { success: true, message: '中立フィールドにカードを生成しました' };
   }
 
-  // 未実装効果チェック機能
-  checkUnimplementedEffect(ability) {
+  // 未実装効果チェック機能（DBベース）
+  checkUnimplementedEffect(ability, cardId, abilityIndex) {
+    // DBのステータスを確認
+    const effectStatus = this.statusDB.getEffectStatus(cardId, abilityIndex);
+    
+    // DBでbrokenと記録されている場合は未実装扱い
+    if (effectStatus.status === 'broken') {
+      return {
+        feature: 'DB記録：動作不良',
+        priority: '高',
+        reason: 'データベースで動作不良として記録されています',
+        matchedText: ability.description,
+        abilityType: ability.type,
+        dbStatus: effectStatus
+      };
+    }
+    
+    // 従来のパターンマッチングも継続（未知の問題検出用）
+    return this.checkUnimplementedEffectLegacy(ability);
+  }
+
+  // 従来の未実装効果チェック（レガシー）
+  checkUnimplementedEffectLegacy(ability) {
     const description = ability.description;
     
     // 🚨 高優先度未実装効果
