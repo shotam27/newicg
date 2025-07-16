@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="game-container">
     <!-- 接続状態表示 -->
     <ConnectionStatus :is-connected="isConnected" />

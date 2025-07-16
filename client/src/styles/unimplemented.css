@@ -1,0 +1,298 @@
+/* Unimplemented feature indicator styles */
+
+/* Base badge styles - shared properties */
+.unimplemented-badge,
+.ability-unimplemented-badge,
+.ability-btn-badge,
+.auction-ability-badge {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  cursor: help;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+/* Card badges */
+.unimplemented-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  border: 2px solid white;
+  animation: unimplemented-pulse 2s infinite;
+}
+
+.unimplemented-badge:hover {
+  transform: scale(1.2);
+  animation: none;
+}
+
+/* Ability detail badges */
+.ability-unimplemented-badge {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+  border: 1px solid white;
+  margin-left: auto;
+}
+
+/* Ability button badges */
+.ability-btn-badge {
+  width: 16px;
+  height: 16px;
+  font-size: 8px;
+  border: 1px solid white;
+  margin-left: 4px;
+}
+
+/* Auction panel badges */
+.auction-ability-badge {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+  border: 1px solid white;
+  margin-left: auto;
+}
+
+/* Priority-based color schemes */
+.unimplemented-high {
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: white;
+}
+
+.unimplemented-medium {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+}
+
+.unimplemented-low {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+}
+
+/* Enhanced ability button styling for unimplemented features */
+.ability-btn.has-unimplemented {
+  border: 2px solid #ff9800;
+  box-shadow: 0 0 8px rgba(255, 152, 0, 0.3);
+  position: relative;
+}
+
+.ability-btn.has-unimplemented::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #ff9800, #f57c00);
+  border-radius: inherit;
+  z-index: -1;
+  animation: unimplemented-border-pulse 2s infinite;
+}
+
+@keyframes unimplemented-border-pulse {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+/* Tooltip-style hover effects */
+.unimplemented-tooltip {
+  position: relative;
+}
+
+.unimplemented-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 1000;
+}
+
+.unimplemented-tooltip:hover::after {
+  opacity: 1;
+}
+
+/* Priority indicators with text */
+.priority-indicator {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 4px;
+}
+
+.priority-high {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef5350;
+}
+
+.priority-medium {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ff9800;
+}
+
+.priority-low {
+  background: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #2196f3;
+}
+
+/* Unimplemented feature list styles */
+.unimplemented-list {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+.unimplemented-list-title {
+  color: #856404;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unimplemented-list-title::before {
+  content: "🚧";
+  font-size: 16px;
+}
+
+.unimplemented-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #ffeaa7;
+}
+
+.unimplemented-item:last-child {
+  border-bottom: none;
+}
+
+.unimplemented-item-icon {
+  font-size: 16px;
+}
+
+.unimplemented-item-text {
+  flex: 1;
+  color: #856404;
+  font-size: 14px;
+}
+
+/* Progress indicator for implementation status */
+.implementation-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #6c757d;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #28a745, #20c997);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+/* Warning overlay for heavily unimplemented cards */
+.unimplemented-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(255, 152, 0, 0.1),
+    rgba(255, 193, 7, 0.1)
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.unimplemented-overlay.high-priority {
+  background: linear-gradient(
+    45deg,
+    rgba(244, 67, 54, 0.15),
+    rgba(255, 87, 34, 0.15)
+  );
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .unimplemented-badge,
+  .ability-btn.has-unimplemented::before {
+    animation: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .unimplemented-high {
+    background: #000;
+    color: #fff;
+    border: 2px solid #fff;
+  }
+
+  .unimplemented-medium {
+    background: #333;
+    color: #fff;
+    border: 2px solid #fff;
+  }
+
+  .unimplemented-low {
+    background: #666;
+    color: #fff;
+    border: 2px solid #fff;
+  }
+}
