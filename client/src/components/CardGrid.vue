@@ -53,7 +53,11 @@
             :key="index"
             class="ability-btn"
             :class="{
-              'has-unimplemented': checkAbilityUnimplemented(card, ability, index),
+              'has-unimplemented': checkAbilityUnimplemented(
+                card,
+                ability,
+                index
+              ),
             }"
             :disabled="
               getCardCount(card.id) < ability.cost ||
@@ -168,13 +172,13 @@ export default {
       for (let i = 0; i < card.abilities.length; i++) {
         const key = `${card.id}_${i}`;
         const effectStatus = this.effectStatuses[key];
-        
-        if (effectStatus && effectStatus.status === 'broken') {
+
+        if (effectStatus && effectStatus.status === "broken") {
           return {
             priority: "高",
             class: "unimplemented-high",
             icon: "🚨",
-            source: "DB"
+            source: "DB",
           };
         }
       }
@@ -257,13 +261,13 @@ export default {
       // DBベースのチェック（最優先）
       const key = `${card.id}_${abilityIndex}`;
       const effectStatus = this.effectStatuses[key];
-      
-      if (effectStatus && effectStatus.status === 'broken') {
+
+      if (effectStatus && effectStatus.status === "broken") {
         return {
           priority: "高",
           class: "unimplemented-high",
           icon: "🚨",
-          source: "DB"
+          source: "DB",
         };
       }
 

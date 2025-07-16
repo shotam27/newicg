@@ -369,14 +369,14 @@ export default {
         if (abilityIndex !== -1) {
           const key = `${this.detailCard.id}_${abilityIndex}`;
           const effectStatus = this.effectStatuses[key];
-          
+
           // DBでbrokenと記録されている場合は未実装扱い
-          if (effectStatus && effectStatus.status === 'broken') {
+          if (effectStatus && effectStatus.status === "broken") {
             return {
               priority: "高",
               class: "unimplemented-high",
               icon: "🚨",
-              source: "DB"
+              source: "DB",
             };
           }
         }

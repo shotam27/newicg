@@ -16,10 +16,13 @@
             <div
               v-if="checkAbilityUnimplemented(selectedCard, ability, index)"
               class="auction-ability-badge"
-              :class="checkAbilityUnimplemented(selectedCard, ability, index).class"
+              :class="
+                checkAbilityUnimplemented(selectedCard, ability, index).class
+              "
               :title="
                 '未実装効果(優先度: ' +
-                checkAbilityUnimplemented(selectedCard, ability, index).priority +
+                checkAbilityUnimplemented(selectedCard, ability, index)
+                  .priority +
                 ')'
               "
             >
@@ -106,13 +109,13 @@ export default {
       if (card) {
         const key = `${card.id}_${abilityIndex}`;
         const effectStatus = this.effectStatuses[key];
-        
-        if (effectStatus && effectStatus.status === 'broken') {
+
+        if (effectStatus && effectStatus.status === "broken") {
           return {
             priority: "高",
             class: "unimplemented-high",
             icon: "🚨",
-            source: "DB"
+            source: "DB",
           };
         }
       }
