@@ -136,11 +136,20 @@ io.on('connection', (socket) => {
     }
   });
 
+
   // ターンパス
   socket.on('pass-turn', () => {
     const game = findGameByPlayerId(socket.id);
     if (game) {
       game.handlePassTurn(socket.id);
+    }
+  });
+
+  // 手動反応発動
+  socket.on('useReaction', (data) => {
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      game.handleUseReaction(socket.id, data.cardInstanceId);
     }
   });
 

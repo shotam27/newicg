@@ -1,14 +1,16 @@
-const CardEffects = require('./CardEffects');
+// ...existing code...
 
 class GameEngine {
+  // ...existing code...
+
   constructor(gameId, players, cardPool) {
     this.id = gameId;
-    
+
     // プレイヤーが2人いることを確認
     if (!players || players.length !== 2) {
       throw new Error('ゲームには正確に2人のプレイヤーが必要です');
     }
-    
+
     this.players = players.map((p, index) => ({
       ...p,
       index: index,
@@ -25,8 +27,35 @@ class GameEngine {
     this.currentPlayerIndex = 0;
     this.auctionSelections = new Map();
     this.cardEffects = new CardEffects(this);
-    
+
     this.setupNeutralField();
+  }
+
+  // 手動反応発動
+  handleUseReaction(playerId, cardInstanceId) {
+    const player = this.players.find(p => p.id === playerId);
+    if (!player) return;
+
+    const card = player.field.find(c => c.instanceId === cardInstanceId);
+    if (!card || card.isFatigued) return;
+
+    // 反応アビリティを探す
+    const reactionAbility = card.abilities.find(a => a.type === '反応');
+    if (!reactionAbility) return;
+
+    const result = this.cardEffects.executeAbility(player, card, reactionAbility);
+
+    // 成功時は全員に通知
+    if (result.success) {
+      this.emit('reaction-triggered', {
+        player: player.name,
+        cardName: card.name,
+        ability: reactionAbility.description,
+        result: result.message,
+        trigger: '手動発動'
+      });
+      this.broadcastGameState();
+    }
   }
 
   setupNeutralField() {
