@@ -24,20 +24,6 @@
         </div>
         <div v-if="card.isFatigued" class="fatigue-counter">疲労中</div>
 
-        <!-- 未実装効果バッジ -->
-        <div
-          v-if="checkUnimplementedEffects(card)"
-          class="unimplemented-badge"
-          :class="checkUnimplementedEffects(card).class"
-          :title="
-            '未実装効果あり(優先度: ' +
-            checkUnimplementedEffects(card).priority +
-            ')'
-          "
-        >
-          {{ checkUnimplementedEffects(card).icon }}
-        </div>
-
         <!-- アビリティボタン（プレイヤーフィールドのみ） -->
         <div v-if="fieldType === 'player-field'" class="abilities">
           <!-- デバッグ情報 -->
@@ -53,19 +39,16 @@
             :key="index"
             class="ability-btn"
             :class="{
-              'has-unimplemented': checkAbilityUnimplemented(
-                card,
-                ability,
-                index
-              ),
+              'passive-ability':
+                ability.type === '反応' ||
+                ability.type === '獲得時' ||
+                ability.type === '敵ターン開始時' ||
+                ability.type === '永続',
+              'conditions-met': isAbilityConditionsMet(card, ability),
+              'victory-ready': isVictoryConditionMet(card, ability),
             }"
-            :disabled="
-              getCardCount(card.id) < ability.cost ||
-              card.isFatigued ||
-              currentPhase !== 'playing' ||
-              !isMyTurn
-            "
-            @click.stop="$emit('use-ability', card, ability)"
+            :disabled="isAbilityDisabled(card, ability)"
+            @click.stop="handleAbilityClick(card, ability)"
           >
             <span class="ability-text"
               >{{ ability.type }} ({{ ability.cost }})</span
@@ -159,6 +142,10 @@ export default {
     playerField: {
       type: Array,
       default: () => [],
+    },
+    playerIP: {
+      type: Number,
+      default: 0,
     },
   },
   methods: {
@@ -423,6 +410,137 @@ export default {
           return "#9e9e9e";
       }
     },
+
+    // アビリティが無効かどうかを判定
+    isAbilityDisabled(card, ability) {
+      // 反応、獲得時、敵ターン開始時、永続は常に無効（能動的に発動できない）
+      if (
+        ability.type === "反応" ||
+        ability.type === "獲得時" ||
+        ability.type === "敵ターン開始時" ||
+        ability.type === "永続"
+      ) {
+        return true;
+      }
+
+      // 勝利条件は特別扱い（条件を満たしていれば有効）
+      if (ability.type === "勝利") {
+        return (
+          !this.isVictoryConditionMet(card, ability) ||
+          this.getCardCount(card.id) < ability.cost ||
+          card.isFatigued ||
+          this.currentPhase !== "playing" ||
+          !this.isMyTurn
+        );
+      }
+
+      // 一般的な条件チェック
+      return (
+        this.getCardCount(card.id) < ability.cost ||
+        card.isFatigued ||
+        this.currentPhase !== "playing" ||
+        !this.isMyTurn
+      );
+    },
+
+    // アビリティの条件が満たされているかチェック
+    isAbilityConditionsMet(card, ability) {
+      // 基本条件（枚数、疲労状態、フェーズ、ターン）
+      const basicConditions =
+        this.getCardCount(card.id) >= ability.cost &&
+        !card.isFatigued &&
+        this.currentPhase === "playing" &&
+        this.isMyTurn;
+
+      // 反応、獲得時、敵ターン開始時、永続は基本条件のみ
+      if (
+        ability.type === "反応" ||
+        ability.type === "獲得時" ||
+        ability.type === "敵ターン開始時" ||
+        ability.type === "永続"
+      ) {
+        return basicConditions;
+      }
+
+      // 強化効果の追加条件チェック
+      if (ability.type === "強化") {
+        // ブナシメジ生成効果の条件チェック
+        if (ability.description.includes("自フィールドに反応持ちがいる場合")) {
+          const hasReactionCard = this.playerField.some(
+            (fieldCard) =>
+              fieldCard.abilities &&
+              fieldCard.abilities.some((a) => a.type === "反応")
+          );
+          return basicConditions && hasReactionCard;
+        }
+      }
+
+      return basicConditions;
+    },
+
+    // 勝利条件が満たされているかチェック
+    isVictoryConditionMet(card, ability) {
+      if (ability.type !== "勝利") return false;
+
+      // 基本条件：コスト数のカードを所持しているか
+      const cardCount = this.getCardCount(card.id);
+      if (cardCount < ability.cost) {
+        return false;
+      }
+
+      // 累計IPが40を超えている場合の条件チェック
+      if (ability.description.includes("累計IPが40を超えている場合")) {
+        return this.playerIP > 40;
+      }
+
+      // ブナシメジの勝利条件：IP40以上
+      if (card.id === "mushroom" && ability.description.includes("IP40以上")) {
+        return this.playerIP >= 40;
+      }
+
+      // IP40以上の条件チェック
+      if (ability.description.includes("IP40以上")) {
+        return this.playerIP >= 40;
+      }
+
+      // 条件なしの勝利条件
+      if (ability.description.includes("条件なし")) {
+        return true;
+      }
+
+      // 追放枚数系勝利条件（概算として40で判定、正確な実装には追放フィールドのデータが必要）
+      if (ability.description.includes("追放が10体になった時")) {
+        // 実際の追放フィールドのデータがないため、仮の条件
+        return false; // TODO: 追放フィールドのデータを取得して正確に判定
+      }
+
+      // フィールド枚数系勝利条件
+      const fieldCountMatch = ability.description.match(
+        /自フィールドにカードが(\d+)枚ある場合/
+      );
+      if (fieldCountMatch) {
+        const requiredCount = parseInt(fieldCountMatch[1]);
+        return this.playerField.length >= requiredCount;
+      }
+
+      return false;
+    },
+
+    // アビリティクリック処理
+    handleAbilityClick(card, ability) {
+      // 反応、獲得時、敵ターン開始時、永続効果は能動的に発動しない
+      if (
+        ability.type === "反応" ||
+        ability.type === "獲得時" ||
+        ability.type === "敵ターン開始時" ||
+        ability.type === "永続"
+      ) {
+        return;
+      }
+
+      // その他の効果は通常通り発動
+      this.$emit("use-ability", card, ability);
+    },
   },
 
   mounted() {
@@ -647,5 +765,58 @@ export default {
 
 .effect-status-icon:hover {
   transform: scale(1.2);
+}
+
+/* パッシブアビリティ（反応・獲得時）のスタイル */
+.ability-btn.passive-ability {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  color: white;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.ability-btn.passive-ability:hover {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  transform: none;
+  box-shadow: none;
+}
+
+/* 条件を満たしているパッシブアビリティ */
+.ability-btn.passive-ability.conditions-met {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  opacity: 0.9;
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
+}
+
+.ability-btn.passive-ability.conditions-met:hover {
+  background: linear-gradient(135deg, #28a745, #20c997);
+}
+
+/* 勝利条件が満たされている場合のキラキラエフェクト */
+.ability-btn.victory-ready {
+  background: linear-gradient(135deg, #ffd700, #ffb347);
+  color: #333;
+  font-weight: bold;
+  animation: sparkle 1.5s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+}
+
+.ability-btn.victory-ready:hover {
+  background: linear-gradient(135deg, #ffed4e, #ffc947);
+  animation-duration: 0.8s;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.8);
+}
+
+@keyframes sparkle {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.9), 0 0 40px rgba(255, 215, 0, 0.4),
+      0 0 50px rgba(255, 215, 0, 0.2);
+  }
 }
 </style>

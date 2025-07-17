@@ -18,17 +18,23 @@
       :current-phase="currentPhase"
       :player-name="playerName"
       :player-i-p="playerIP"
+      :player-i-p-increase="playerIPIncrease"
       :opponent-name="opponentName"
       :opponent-i-p="opponentIP"
+      :opponent-i-p-increase="opponentIPIncrease"
       :player-field="playerField"
       :opponent-field="opponentField"
       :neutral-field="neutralField"
       :selected-card="selectedCard"
+      :show-auction-modal="showAuctionModal"
       :is-my-turn="isMyTurn"
       @card-click="showCardOptionsMenu"
       @card-detail="showCardDetail"
       @use-ability="useAbility"
       @place-bid="placeBid"
+      @debug-acquire="debugAcquire"
+      @debug-set-ip="debugSetIP"
+      @close-auction="closeAuction"
       @pass-turn="passTurn"
       @end-turn="endTurn"
     />
@@ -47,19 +53,27 @@
       :show-target-selection="showTargetSelection"
       :target-selection-message="targetSelectionMessage"
       :valid-targets="validTargets"
+      :show-reaction-selection="showReactionSelection"
+      :reaction-selection-message="reactionSelectionMessage"
+      :valid-reaction-cards="validReactionCards"
       :show-card-options="showCardOptions"
       :selected-card-for-options="selectedCardForOptions"
       :detail-card="detailCard"
       :game-state="gameState"
       :winner="winner"
+      :show-bid-completed="showBidCompleted"
+      :bid-completed-data="bidCompletedData"
       @close-auction-result="closeAuctionResult"
       @select-target="selectTarget"
       @cancel-target-selection="cancelTargetSelection"
+      @select-reaction-card="selectReactionCard"
+      @cancel-reaction-selection="cancelReactionSelection"
       @hide-card-options="hideCardOptionsMenu"
       @show-detail="showDetailFromOptions"
       @select-for-bid="selectForBid"
       @hide-card-detail="hideCardDetail"
       @reset-game="resetGame"
+      @close-bid-completed="closeBidCompleted"
     />
 
     <!-- メッセージログ -->
@@ -68,6 +82,11 @@
       :is-minimized="isMessageLogMinimized"
       @toggle-log="toggleMessageLog"
     />
+
+    <!-- IPアニメーション表示 -->
+    <div v-if="ipAnimation.show" class="ip-animation" :class="ipAnimation.type">
+      {{ ipAnimation.type === "gain" ? "+" : "-" }}{{ ipAnimation.amount }}IP
+    </div>
   </div>
 </template>
 
@@ -97,6 +116,7 @@ export default {
       playerName: "",
       playerId: "",
       playerIP: 10,
+      playerIPIncrease: 10, // 毎ターンの増加IP
       currentTurn: 1,
       currentPhase: "auction", // auction, playing
       currentPlayer: "", // 現在のプレイヤー名
@@ -107,9 +127,13 @@ export default {
       neutralField: [],
       opponentName: "", // 対戦相手の名前
       opponentIP: 10, // 対戦相手のポイント
+      opponentIPIncrease: 10, // 対戦相手の増加IP
 
       // オークション
       selectedCard: null,
+      showAuctionModal: false, // オークションモーダル表示状態
+      showBidCompleted: false, // 入札完了状態表示
+      bidCompletedData: null, // 入札完了データ
 
       // オークション結果表示
       showAuctionResult: false,
@@ -133,6 +157,11 @@ export default {
       validTargets: [],
       pendingAbility: null,
 
+      // 反応カード選択
+      showReactionSelection: false,
+      reactionSelectionMessage: "",
+      validReactionCards: [],
+
       // メッセージ
       messages: [],
       isMessageLogMinimized: false,
@@ -149,6 +178,13 @@ export default {
 
       // 勝者
       winner: null,
+
+      // IPアニメーション
+      ipAnimation: {
+        show: false,
+        amount: 0,
+        type: "gain", // 'gain' or 'loss'
+      },
     };
   },
 
@@ -219,6 +255,15 @@ export default {
         this.addMessage(data.message, "warning");
       });
 
+      // 反応カード選択の通知
+      this.socket.on("select-reaction-card", (data) => {
+        console.log("select-reaction-cardイベント受信:", data);
+        this.showReactionSelection = true;
+        this.reactionSelectionMessage = data.message;
+        this.validReactionCards = data.validTargets;
+        this.addMessage(data.message, "info");
+      });
+
       // 反応効果発動の通知
       this.socket.on("reaction-triggered", (data) => {
         console.log("反応効果発動", data);
@@ -226,16 +271,6 @@ export default {
           `${data.player}の${data.cardName}が反応！${data.result}（${data.trigger}に対して）`,
           "reaction"
         );
-      });
-
-      // 未実装効果の通知
-      this.socket.on("unimplemented-effect", (data) => {
-        console.warn("🚧 未実装効果が使用されました:", data);
-        this.addMessage(
-          `⚠️ ${data.player}の${data.cardName}: 未実装効果（${data.unimplementedInfo.feature}、優先度: ${data.unimplementedInfo.priority})`,
-          "warning"
-        );
-        this.addMessage(`📝 理由: ${data.unimplementedInfo.reason}`, "info");
       });
     },
 
@@ -284,7 +319,15 @@ export default {
       if (state.players && state.players[this.socket.id]) {
         const playerData = state.players[this.socket.id];
         this.playerId = this.socket.id;
-        this.playerIP = playerData.ip;
+
+        // IPアニメーション付きで更新
+        this.updatePlayerIP(playerData.ip);
+
+        // 増加IPの更新
+        if (playerData.ipIncrease !== undefined) {
+          this.playerIPIncrease = playerData.ipIncrease;
+        }
+
         this.playerField = (playerData.field || []).map((card) => ({
           ...card,
           instanceId: card.instanceId || card.fieldId, // instanceIdまたはfieldIdを使用
@@ -304,6 +347,11 @@ export default {
           );
           this.opponentName = state.players[opponentId].name || "対戦相手";
           this.opponentIP = state.players[opponentId].ip || 10;
+
+          // 相手の増加IPの更新
+          if (state.players[opponentId].ipIncrease !== undefined) {
+            this.opponentIPIncrease = state.players[opponentId].ipIncrease;
+          }
 
           // 初回マッチング時にマッチング完了画面を表示
           if (wasFirstMatch && state.status === "playing") {
@@ -334,6 +382,14 @@ export default {
           amount: bidAmount,
         });
         this.addMessage(`${selectedCard.name}に${bidAmount}IP入札`, "info");
+
+        // 入札後にモーダルを閉じて、入札完了状態を表示
+        this.showAuctionModal = false;
+        this.showBidCompleted = true;
+        this.bidCompletedData = {
+          cardName: selectedCard.name,
+          bidAmount: bidAmount,
+        };
       } else {
         console.log("入札失敗", {
           selectedCard: selectedCard,
@@ -427,8 +483,14 @@ export default {
 
     selectForBid() {
       if (this.currentPhase === "auction" && this.selectedCardForOptions) {
+        // 入札ボタン押下時に競売カードとしてセットし、モーダルを表示
         this.selectedCard = this.selectedCardForOptions;
         this.hideCardOptionsMenu();
+        // GameBoardのshowAuctionModalForCardメソッドを呼び出すためのイベントを発火
+        this.$nextTick(() => {
+          // GameBoard経由でAuctionModalを表示
+          this.showAuctionModal = true;
+        });
       }
     },
 
@@ -484,6 +546,37 @@ export default {
       this.messages = [];
     },
 
+    // デバッグ用カード獲得機能
+    debugAcquire(card) {
+      console.log("デバッグ獲得:", card);
+
+      // サーバーにデバッグ獲得イベントを送信
+      this.socket.emit("debug-acquire", {
+        fieldId: card.fieldId || card.instanceId || card.id,
+        cardId: card.id,
+        cardName: card.name,
+      });
+
+      this.addMessage(`デバッグ獲得要求: ${card.name}`, "info");
+      this.selectedCard = null; // 選択解除
+    },
+
+    // デバッグ用IP設定機能
+    debugSetIP(data) {
+      console.log("デバッグIP設定:", data);
+
+      // サーバーにデバッグIP設定イベントを送信
+      this.socket.emit("debug-set-ip", data);
+
+      this.addMessage(`デバッグIP設定要求: ${data.ip}`, "info");
+    },
+
+    // オークション閉じる
+    closeAuction() {
+      this.selectedCard = null;
+      this.showAuctionModal = false;
+    },
+
     selectTarget(targetFieldId) {
       console.log("selectTarget呼び出し", {
         targetFieldId,
@@ -511,6 +604,23 @@ export default {
       this.pendingAbility = null;
     },
 
+    selectReactionCard(reactionFieldId) {
+      console.log("selectReactionCard呼び出し", { reactionFieldId });
+      if (this.showReactionSelection) {
+        this.socket.emit("reaction-selected", {
+          reactionFieldId: reactionFieldId,
+        });
+        console.log("reaction-selectedイベント送信:", { reactionFieldId });
+        this.cancelReactionSelection();
+      }
+    },
+
+    cancelReactionSelection() {
+      this.showReactionSelection = false;
+      this.reactionSelectionMessage = "";
+      this.validReactionCards = [];
+    },
+
     cancelMatching() {
       this.isMatching = false;
       this.socket.emit("cancelMatching");
@@ -526,6 +636,29 @@ export default {
 
     toggleMessageLog() {
       this.isMessageLogMinimized = !this.isMessageLogMinimized;
+    },
+
+    // IPアニメーション表示
+    showIPAnimation(amount, type = "gain") {
+      this.ipAnimation.amount = Math.abs(amount);
+      this.ipAnimation.type = type;
+      this.ipAnimation.show = true;
+
+      setTimeout(() => {
+        this.ipAnimation.show = false;
+      }, 2000); // 2秒後に非表示
+    },
+
+    // IPを更新してアニメーション表示
+    updatePlayerIP(newIP) {
+      const oldIP = this.playerIP;
+      const diff = newIP - oldIP;
+
+      if (diff !== 0) {
+        this.showIPAnimation(diff, diff > 0 ? "gain" : "loss");
+      }
+
+      this.playerIP = newIP;
     },
 
     showTurnPhaseChangeNotification(
@@ -582,6 +715,10 @@ export default {
       this.auctionResultData = resultData;
       this.showAuctionResult = true;
 
+      // 入札完了状態をリセット
+      this.showBidCompleted = false;
+      this.bidCompletedData = null;
+
       // 5秒後に自動で閉じる
       if (this.auctionResultTimer) {
         clearTimeout(this.auctionResultTimer);
@@ -613,6 +750,11 @@ export default {
         }, 500); // 少し遅延してスムーズに表示
       }
     },
+
+    closeBidCompleted() {
+      this.showBidCompleted = false;
+      this.bidCompletedData = null;
+    },
   },
 
   beforeUnmount() {
@@ -632,12 +774,58 @@ export default {
 <style>
 /* Import global styles */
 @import url("./styles/global.css");
-@import url("./styles/unimplemented.css");
 
 .game-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
   font-family: Arial, sans-serif;
+  position: relative;
+}
+
+/* IPアニメーション */
+.ip-animation {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: bold;
+  z-index: 2000;
+  animation: ipBounce 2s ease-out;
+  pointer-events: none;
+}
+
+.ip-animation.gain {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  box-shadow: 0 4px 20px rgba(40, 167, 69, 0.4);
+}
+
+.ip-animation.loss {
+  background: linear-gradient(135deg, #dc3545, #fd7e14);
+  box-shadow: 0 4px 20px rgba(220, 53, 69, 0.4);
+}
+
+@keyframes ipBounce {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0px) scale(1.1);
+  }
+  40% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-5px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-30px) scale(0.9);
+  }
 }
 </style>

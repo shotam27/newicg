@@ -107,6 +107,13 @@ io.on('connection', (socket) => {
       try {
         const game = new GameEngine(gameId, [opponent, player], cardData.cards);
         games.set(gameId, game);
+        
+        console.log('🎮 ゲーム作成完了:', {
+          gameId: gameId,
+          players: [opponent.name, player.name],
+          playerIds: [opponent.id, player.id],
+          totalGames: games.size
+        });
 
         // 両プレイヤーをゲームルームに参加
         opponent.socket.join(gameId);
@@ -166,6 +173,31 @@ io.on('connection', (socket) => {
     }
   });
 
+  // デバッグ獲得処理
+  socket.on('debug-acquire', (data) => {
+    console.log('debug-acquireイベント受信:', data);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      game.handleDebugAcquire(socket.id, data.fieldId || data.instanceId || data.id);
+    } else {
+      console.log('ゲームが見つかりません:', socket.id);
+    }
+  });
+
+  // デバッグIP設定（テスト用）
+  socket.on('debug-set-ip', (data) => {
+    console.log('debug-set-ipイベント受信:', data);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      const player = game.players.find(p => p.id === socket.id);
+      if (player) {
+        player.points = data.ip || 50;
+        console.log(`デバッグ: ${player.name}のIPを${player.points}に設定`);
+        game.broadcastGameState();
+      }
+    }
+  });
+
   // マッチングキャンセル
   socket.on('cancelMatching', () => {
     const waitingIndex = waitingPlayers.findIndex(p => p.id === socket.id);
@@ -204,6 +236,17 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 反応カード選択
+  socket.on('reaction-selected', (data) => {
+    console.log('reaction-selectedイベント受信:', data);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      game.handleReactionSelection(socket.id, data.reactionFieldId);
+    } else {
+      console.log('ゲームが見つかりません');
+    }
+  });
+
   // 切断処理
   socket.on('disconnect', () => {
     console.log('プレイヤー切断:', socket.id);
@@ -218,17 +261,34 @@ io.on('connection', (socket) => {
     const game = findGameByPlayerId(socket.id);
     if (game) {
       game.handlePlayerDisconnect(socket.id);
-      games.delete(game.id);
+      
+      // 残っているプレイヤーをチェック
+      const remainingPlayers = game.players.filter(p => p.socket && p.socket.connected);
+      console.log('切断後の残プレイヤー数:', remainingPlayers.length);
+      
+      // 全プレイヤーが切断した場合のみゲームを削除
+      if (remainingPlayers.length === 0) {
+        console.log('全プレイヤーが切断したため、ゲームを削除:', game.id);
+        games.delete(game.id);
+      } else {
+        console.log('他のプレイヤーが残っているため、ゲームを継続:', game.id);
+      }
     }
   });
 });
 
 function findGameByPlayerId(playerId) {
-  for (const game of games.values()) {
+  console.log('findGameByPlayerId呼び出し:', playerId);
+  console.log('現在のゲーム数:', games.size);
+  
+  for (const [gameId, game] of games.entries()) {
+    console.log(`ゲーム ${gameId} のプレイヤー:`, game.players.map(p => ({ id: p.id, name: p.name })));
     if (game.players.some(p => p.id === playerId)) {
+      console.log('ゲーム発見:', gameId);
       return game;
     }
   }
+  console.log('ゲームが見つかりませんでした');
   return null;
 }
 

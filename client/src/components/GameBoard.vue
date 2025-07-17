@@ -6,8 +6,10 @@
       :current-phase="currentPhase"
       :player-name="playerName"
       :player-i-p="playerIP"
+      :player-i-p-increase="playerIPIncrease"
       :opponent-name="opponentName"
       :opponent-i-p="opponentIP"
+      :opponent-i-p-increase="opponentIPIncrease"
     />
 
     <!-- 相手のフィールド -->
@@ -38,12 +40,15 @@
       @use-ability="(card, ability) => $emit('use-ability', card, ability)"
     />
 
-    <!-- オークションパネル -->
-    <AuctionPanel
-      :current-phase="currentPhase"
+    <!-- オークションパネル（モーダル） -->
+    <AuctionModal
+      :show="showAuctionModal"
       :selected-card="selectedCard"
       :player-i-p="playerIP"
-      @place-bid="$emit('place-bid', $event)"
+      :neutral-field="neutralField"
+      @place-bid="handlePlaceBid"
+      @debug-acquire="$emit('debug-acquire', $event)"
+      @close="$emit('close-auction')"
     />
 
     <!-- 自分のフィールド -->
@@ -55,6 +60,7 @@
       :current-phase="currentPhase"
       :is-my-turn="isMyTurn"
       :player-field="playerField"
+      :player-i-p="playerIP"
       @card-click="$emit('card-click', $event)"
       @card-detail="$emit('card-detail', $event)"
       @use-ability="(card, ability) => $emit('use-ability', card, ability)"
@@ -66,6 +72,7 @@
       :is-my-turn="isMyTurn"
       @pass-turn="$emit('pass-turn')"
       @end-turn="$emit('end-turn')"
+      @debug-set-ip="$emit('debug-set-ip', $event)"
     />
   </div>
 </template>
@@ -73,7 +80,7 @@
 <script>
 import TurnInfo from "./TurnInfo.vue";
 import CardGrid from "./CardGrid.vue";
-import AuctionPanel from "./AuctionPanel.vue";
+import AuctionModal from "./AuctionModal.vue";
 import ActionButtons from "./ActionButtons.vue";
 
 export default {
@@ -81,7 +88,7 @@ export default {
   components: {
     TurnInfo,
     CardGrid,
-    AuctionPanel,
+    AuctionModal,
     ActionButtons,
   },
   props: {
@@ -101,11 +108,19 @@ export default {
       type: Number,
       required: true,
     },
+    playerIPIncrease: {
+      type: Number,
+      default: 10,
+    },
     opponentName: {
       type: String,
       default: "",
     },
     opponentIP: {
+      type: Number,
+      default: 10,
+    },
+    opponentIPIncrease: {
       type: Number,
       default: 10,
     },
@@ -125,9 +140,18 @@ export default {
       type: Object,
       default: null,
     },
+    showAuctionModal: {
+      type: Boolean,
+      default: false,
+    },
     isMyTurn: {
       type: Boolean,
       required: true,
+    },
+  },
+  methods: {
+    handlePlaceBid(data) {
+      this.$emit("place-bid", data);
     },
   },
   emits: [
@@ -135,6 +159,8 @@ export default {
     "card-detail",
     "use-ability",
     "place-bid",
+    "debug-acquire",
+    "close-auction",
     "pass-turn",
     "end-turn",
   ],

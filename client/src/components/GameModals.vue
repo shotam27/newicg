@@ -1,4 +1,22 @@
 <template>
+  <!-- 勝利画面 -->
+  <div v-if="gameState === 'finished'" class="victory-overlay">
+    <div class="victory-content">
+      <div class="victory-animation">🎉</div>
+      <h1 class="victory-title">ゲーム終了！</h1>
+      <div class="victory-winner">
+        <div v-if="winner" class="winner-announcement">
+          <span class="winner-name">{{ winner }}</span>
+          <span class="winner-text">の勝利！</span>
+        </div>
+        <div v-else class="draw-announcement">引き分け</div>
+      </div>
+      <button class="play-again-btn" @click="$emit('reset-game')">
+        もう一度プレイ
+      </button>
+    </div>
+  </div>
+
   <!-- マッチング完了画面 -->
   <div v-if="showMatchResult" class="match-result-overlay">
     <div class="match-result-content">
@@ -93,6 +111,25 @@
     </div>
   </div>
 
+  <!-- 入札完了状態表示 -->
+  <div v-if="showBidCompleted" class="bid-completed-overlay">
+    <div class="bid-completed-content">
+      <div class="bid-completed-header">
+        <h3>✅ 入札完了</h3>
+        <button @click="$emit('close-bid-completed')" class="close-btn-small">
+          ×
+        </button>
+      </div>
+      <div class="bid-completed-body" v-if="bidCompletedData">
+        <div class="bid-completed-card">{{ bidCompletedData.cardName }}</div>
+        <div class="bid-completed-amount">
+          {{ bidCompletedData.bidAmount }}IP
+        </div>
+        <div class="bid-completed-message">対戦相手の選択を待っています...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ターン/フェーズ変更通知 -->
   <div v-if="showTurnPhaseNotification" class="turn-phase-notification-overlay">
     <div class="turn-phase-notification-content">
@@ -138,6 +175,52 @@
           <button
             class="cancel-target-btn"
             @click="$emit('cancel-target-selection')"
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 反応カード選択モーダル -->
+  <div
+    v-if="showReactionSelection"
+    class="reaction-selection-modal"
+    @click="$emit('cancel-reaction-selection')"
+  >
+    <div class="reaction-selection-content" @click.stop>
+      <div class="reaction-selection-header">
+        <h3>⚡ 反応カード選択</h3>
+        <button class="close-btn" @click="$emit('cancel-reaction-selection')">
+          ×
+        </button>
+      </div>
+      <div class="reaction-selection-body">
+        <p class="reaction-message">{{ reactionSelectionMessage }}</p>
+        <div class="reaction-cards">
+          <div
+            v-for="reactionCard in validReactionCards"
+            :key="reactionCard.fieldId"
+            class="reaction-card"
+            @click="$emit('select-reaction-card', reactionCard.fieldId)"
+          >
+            <div class="reaction-card-name">{{ reactionCard.name }}</div>
+            <div class="reaction-abilities">
+              <div
+                v-for="ability in reactionCard.abilities"
+                :key="ability.description"
+                class="reaction-ability"
+              >
+                {{ ability.description }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="reaction-actions">
+          <button
+            class="cancel-reaction-btn"
+            @click="$emit('cancel-reaction-selection')"
           >
             キャンセル
           </button>
@@ -228,19 +311,6 @@
                   getStatusIcon(getEffectStatus(detailCard.id, index).status)
                 }}
               </span>
-              <!-- 個別アビリティの未実装タグ -->
-              <div
-                v-if="checkAbilityUnimplemented(ability)"
-                class="ability-unimplemented-badge"
-                :class="checkAbilityUnimplemented(ability).class"
-                :title="
-                  '未実装効果(優先度: ' +
-                  checkAbilityUnimplemented(ability).priority +
-                  ')'
-                "
-              >
-                {{ checkAbilityUnimplemented(ability).icon }}
-              </div>
             </div>
             <div class="ability-description">{{ ability.description }}</div>
           </div>
@@ -329,6 +399,19 @@ export default {
       type: Array,
       default: () => [],
     },
+    // Reaction selection modal
+    showReactionSelection: {
+      type: Boolean,
+      default: false,
+    },
+    reactionSelectionMessage: {
+      type: String,
+      default: "",
+    },
+    validReactionCards: {
+      type: Array,
+      default: () => [],
+    },
     // Card options modal
     showCardOptions: {
       type: Boolean,
@@ -352,7 +435,29 @@ export default {
       type: String,
       default: null,
     },
+    // Bid completed modal
+    showBidCompleted: {
+      type: Boolean,
+      default: false,
+    },
+    bidCompletedData: {
+      type: Object,
+      default: null,
+    },
   },
+  emits: [
+    "close-auction-result",
+    "select-target",
+    "cancel-target-selection",
+    "select-reaction-card",
+    "cancel-reaction-selection",
+    "hide-card-options",
+    "show-detail",
+    "select-for-bid",
+    "hide-card-detail",
+    "reset-game",
+    "close-bid-completed",
+  ],
   methods: {
     getPhaseDisplayName(phase) {
       const phaseNames = {
@@ -361,95 +466,6 @@ export default {
         "target-selection": "対象選択",
       };
       return phaseNames[phase] || phase;
-    },
-    checkAbilityUnimplemented(ability) {
-      // まずdetailCardからアビリティのインデックスを取得
-      if (this.detailCard && this.detailCard.abilities) {
-        const abilityIndex = this.detailCard.abilities.indexOf(ability);
-        if (abilityIndex !== -1) {
-          const key = `${this.detailCard.id}_${abilityIndex}`;
-          const effectStatus = this.effectStatuses[key];
-
-          // DBでbrokenと記録されている場合は未実装扱い
-          if (effectStatus && effectStatus.status === "broken") {
-            return {
-              priority: "高",
-              class: "unimplemented-high",
-              icon: "🚨",
-              source: "DB",
-            };
-          }
-        }
-      }
-
-      // 従来のパターンマッチング（レガシー検出用）
-      return this.checkAbilityUnimplementedLegacy(ability);
-    },
-
-    checkAbilityUnimplementedLegacy(ability) {
-      const description = ability.description;
-
-      // 高優先度未実装効果のパターン
-      const highPriorityPatterns = [
-        /１ラウンドで侵略した回数が\d+を?超えていた場合/,
-        /自フィールドに同種がいない場合/,
-        /相手の反応持ちの数だけ/,
-      ];
-
-      // 中優先度未実装効果のパターン
-      const mediumPriorityPatterns = [
-        /自分の反応持ちカードの効果を発動できる/,
-        /中立フィールドの同種を回復する/,
-        /\d+体疲労させる/,
-        /好きなだけ置く/,
-        /１ラウンドにつき一度のみ/,
-        /同種を一枚疲労させ/,
-        /疲労済を追放する/,
-        /自身の疲労取り除く/,
-        /ラウンド終了/,
-      ];
-
-      // 低優先度未実装効果のパターン
-      const lowPriorityPatterns = [
-        /反応持ちを一体追放/,
-        /反応持ちを一体疲労させ/,
-        /相手の.*カードを発動させる/,
-      ];
-
-      // 高優先度チェック
-      for (const pattern of highPriorityPatterns) {
-        if (pattern.test(description)) {
-          return {
-            priority: "高",
-            class: "unimplemented-high",
-            icon: "🚨",
-          };
-        }
-      }
-
-      // 中優先度チェック
-      for (const pattern of mediumPriorityPatterns) {
-        if (pattern.test(description)) {
-          return {
-            priority: "中",
-            class: "unimplemented-medium",
-            icon: "🔶",
-          };
-        }
-      }
-
-      // 低優先度チェック
-      for (const pattern of lowPriorityPatterns) {
-        if (pattern.test(description)) {
-          return {
-            priority: "低",
-            class: "unimplemented-low",
-            icon: "🔷",
-          };
-        }
-      }
-
-      return null;
     },
 
     // 効果ステータス関連メソッド
@@ -548,6 +564,137 @@ export default {
 </script>
 
 <style scoped>
+/* Victory screen styles */
+.victory-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 215, 0, 0.9),
+    rgba(255, 165, 0, 0.9)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: victoryFadeIn 0.5s ease;
+}
+
+.victory-content {
+  background: white;
+  border-radius: 20px;
+  padding: 60px 40px;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  animation: victoryBounce 0.8s ease;
+  max-width: 500px;
+  width: 90%;
+}
+
+.victory-animation {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: celebrationSpin 2s ease-in-out infinite;
+}
+
+.victory-title {
+  font-size: 3em;
+  margin: 0 0 30px 0;
+  background: linear-gradient(135deg, #ffd700, #ff8c00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: bold;
+}
+
+.victory-winner {
+  margin-bottom: 40px;
+}
+
+.winner-announcement {
+  font-size: 2em;
+  margin-bottom: 10px;
+}
+
+.winner-name {
+  color: #28a745;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.winner-text {
+  color: #333;
+  font-weight: 600;
+}
+
+.draw-announcement {
+  font-size: 2em;
+  color: #6c757d;
+  font-weight: bold;
+}
+
+.play-again-btn {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  font-size: 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+}
+
+.play-again-btn:hover {
+  background: linear-gradient(135deg, #218838, #1ea085);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+}
+
+@keyframes victoryFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes victoryBounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(-100px);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05) translateY(0);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes celebrationSpin {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(-5deg) scale(1.1);
+  }
+  75% {
+    transform: rotate(5deg) scale(1.1);
+  }
+}
+
+/* Other modal styles */
 /* Base modal styles */
 .match-result-overlay,
 .auction-result-overlay,
@@ -1072,36 +1219,6 @@ export default {
   color: #856404;
 }
 
-.ability-unimplemented-badge {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: bold;
-  cursor: help;
-  border: 1px solid white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  margin-left: auto;
-}
-
-.ability-unimplemented-badge.unimplemented-high {
-  background: linear-gradient(135deg, #ff4444, #cc0000);
-  color: white;
-}
-
-.ability-unimplemented-badge.unimplemented-medium {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
-  color: white;
-}
-
-.ability-unimplemented-badge.unimplemented-low {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-  color: white;
-}
-
 /* Game over modal */
 .game-over {
   position: fixed;
@@ -1144,6 +1261,94 @@ export default {
   background: #0056b3;
 }
 
+/* 入札完了状態表示 */
+.bid-completed-overlay {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1500;
+  animation: slideInRight 0.3s ease;
+}
+
+.bid-completed-content {
+  background: white;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  border-left: 4px solid #28a745;
+  min-width: 280px;
+}
+
+.bid-completed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.bid-completed-header h3 {
+  margin: 0;
+  color: #28a745;
+  font-size: 16px;
+}
+
+.close-btn-small {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-btn-small:hover {
+  background: #f8f9fa;
+  color: #333;
+}
+
+.bid-completed-body {
+  text-align: center;
+}
+
+.bid-completed-card {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.bid-completed-amount {
+  font-size: 20px;
+  font-weight: bold;
+  color: #28a745;
+  margin-bottom: 12px;
+}
+
+.bid-completed-message {
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+  animation: pulse 2s infinite;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .effect-status-icon {
   font-size: 14px;
   margin-left: 8px;
@@ -1161,5 +1366,111 @@ export default {
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+/* 反応選択モーダル追加スタイル */
+.reaction-selection-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.reaction-selection-content {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.reaction-selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.reaction-selection-header h3 {
+  margin: 0;
+  color: #333;
+}
+
+.reaction-message {
+  margin-bottom: 20px;
+  font-size: 16px;
+  color: #666;
+  text-align: center;
+}
+
+.reaction-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.reaction-card {
+  padding: 16px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reaction-card:hover {
+  border-color: #28a745;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2);
+}
+
+.reaction-card-name {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.reaction-abilities {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reaction-ability {
+  font-size: 14px;
+  color: #666;
+  background: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border-left: 3px solid #28a745;
+}
+
+.reaction-actions {
+  text-align: center;
+}
+
+.cancel-reaction-btn {
+  padding: 8px 20px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cancel-reaction-btn:hover {
+  background: #5a6268;
 }
 </style>

@@ -7,12 +7,18 @@
     <div class="players-info">
       <div class="player-info">
         <span class="player-name">{{ playerName }}</span>
-        <span class="ip-display">IP: {{ playerIP }}</span>
+        <div class="ip-section">
+          <span class="ip-display">IP: {{ playerIP }}</span>
+          <span class="ip-increase">+{{ playerIPIncrease }}/ターン</span>
+        </div>
       </div>
       <div v-if="opponentName" class="opponent-info">
         <span class="vs-label">vs</span>
         <span class="opponent-name">{{ opponentName }}</span>
-        <span class="opponent-ip">IP: {{ opponentIP }}</span>
+        <div class="ip-section">
+          <span class="opponent-ip">IP: {{ opponentIP }}</span>
+          <span class="ip-increase">+{{ opponentIPIncrease }}/ターン</span>
+        </div>
       </div>
     </div>
   </div>
@@ -38,11 +44,19 @@ export default {
       type: Number,
       required: true,
     },
+    playerIPIncrease: {
+      type: Number,
+      default: 10,
+    },
     opponentName: {
       type: String,
       default: "",
     },
     opponentIP: {
+      type: Number,
+      default: 10,
+    },
+    opponentIPIncrease: {
       type: Number,
       default: 10,
     },
@@ -120,6 +134,12 @@ export default {
   font-weight: 600;
 }
 
+.ip-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .ip-display {
   padding: 6px 12px;
   background: #4caf50;
@@ -127,6 +147,16 @@ export default {
   border-radius: 15px;
   font-weight: 600;
   box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+}
+
+.ip-increase {
+  padding: 4px 8px;
+  background: rgba(76, 175, 80, 0.7);
+  color: white;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .players-info {
@@ -160,5 +190,10 @@ export default {
   border-radius: 15px;
   font-weight: 600;
   box-shadow: 0 2px 6px rgba(255, 87, 34, 0.3);
+}
+
+.opponent-info .ip-increase {
+  background: rgba(255, 87, 34, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 </style>

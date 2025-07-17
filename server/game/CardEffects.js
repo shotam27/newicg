@@ -38,30 +38,19 @@ class CardEffects {
         description: ability.description,
         note: '疲労状態に関係なく実行' 
       });
-      this.executeAbility(player, card, ability);
+      const abilityIndex = card.abilities.indexOf(ability);
+      this.executeAbility(player, card, ability, card.id, abilityIndex);
     });
   }
 
   // 能力実行
-  executeAbility(player, card, ability) {
+  executeAbility(player, card, ability, cardId, abilityIndex) {
     console.log('CardEffects.executeAbility 開始:', { 
       playerName: player.name, 
       cardName: card.name, 
       abilityType: ability.type, 
       description: ability.description 
     });
-    
-    // 未実装効果のチェック
-    // アビリティ実行前にステータスをチェック
-    const unimplementedTag = this.checkUnimplementedEffect(ability, cardId, abilityIndex);
-    if (unimplementedTag) {
-      console.warn('⚠️ 未実装効果が検出されました:', unimplementedTag);
-      return { 
-        success: false, 
-        message: `未実装効果: ${unimplementedTag.feature} (${unimplementedTag.priority})`,
-        unimplemented: unimplementedTag
-      };
-    }
     
     try {
       let result;
@@ -93,7 +82,7 @@ class CardEffects {
           result = this.executeAquatic(player, card, ability);
           break;
         case '勝利':
-          result = this.checkVictoryCondition(player, ability);
+          result = this.checkVictoryCondition(player, ability, card);
           break;
         default:
           result = { success: false, message: '未知の能力タイプです' };
@@ -130,7 +119,7 @@ class CardEffects {
   }
 
   // 対象指定版の能力実行
-  executeAbilityWithTarget(player, card, ability, target) {
+  executeAbilityWithTarget(player, card, ability, target, cardId, abilityIndex) {
     console.log('CardEffects.executeAbilityWithTarget 開始:', { 
       playerName: player.name, 
       cardName: card.name, 
@@ -138,7 +127,7 @@ class CardEffects {
       description: ability.description,
       targetName: target.name
     });
-    
+
     try {
       let result;
       switch (ability.type) {
@@ -150,7 +139,7 @@ class CardEffects {
           break;
         default:
           // 対象指定が不要な効果は通常実行
-          result = this.executeAbility(player, card, ability);
+          result = this.executeAbility(player, card, ability, cardId, abilityIndex);
           break;
       }
       
@@ -306,6 +295,26 @@ class CardEffects {
       }
     }
     
+    // 増加IP消費系の追放効果
+    if (ability.description.includes('増加IP2消費し、一匹追放する')) {
+      // 増加IPから2消費する
+      if (player.ipIncrease >= 12) { // 通常10 + 必要2
+        player.ipIncrease -= 2;
+        
+        // 対象を追放
+        const targetOwner = this.game.players.find(p => p.field.includes(target));
+        if (targetOwner) {
+          const cardIndex = targetOwner.field.indexOf(target);
+          targetOwner.field.splice(cardIndex, 1);
+          this.game.exileField.push(target);
+          console.log('増加IP2消費して対象を追放しました:', target.name);
+          return { success: true, message: `増加IP2消費して${target.name}を追放しました` };
+        }
+      } else {
+        return { success: false, message: '増加IPが不足しています（12以上必要）' };
+      }
+    }
+    
     // IP消費系の追放効果（統一パターンで対応）
     if ((ability.description.includes('IP消費') || 
          (ability.description.includes('IP') && ability.description.includes('消費'))) && 
@@ -338,6 +347,32 @@ class CardEffects {
 
   // 強化効果
   executeEnhancement(player, card, ability) {
+    // 手動反応発動システム
+    if (ability.description.includes('自分の反応持ちカードの効果を発動できる')) {
+      const reactionCards = player.field.filter(c => 
+        !c.isFatigued && c.abilities && c.abilities.some(a => a.type === '反応')
+      );
+      
+      if (reactionCards.length === 0) {
+        return { success: false, message: '発動可能な反応持ちカードがありません' };
+      }
+
+      // プレイヤーに反応カード選択を要求
+      const validTargets = reactionCards.map(reactionCard => ({
+        fieldId: reactionCard.fieldId || reactionCard.instanceId,
+        name: reactionCard.name,
+        abilities: reactionCard.abilities.filter(a => a.type === '反応')
+      }));
+
+      player.socket.emit('select-reaction-card', {
+        message: '発動する反応持ちカードを選択してください',
+        validTargets: validTargets
+      });
+
+      // 反応選択の処理は別途handleReactionSelectionで行う
+      return { success: true, message: '反応カード選択待ち' };
+    }
+
     // 同種を一枚疲労させる効果（前処理）
     if (ability.description.includes('同種を一枚疲労させ')) {
       const sameTypeCards = player.field.filter(c => 
@@ -370,7 +405,57 @@ class CardEffects {
       }
     }
 
-    // IP消費系（統一パターンで対応）
+    // 複数条件・複数効果の複合強化効果
+    if (ability.description.includes('自フィールドに反応持ちがいる場合、5IP消費してブナシメジを生成する')) {
+      // 条件1: 自フィールドに反応持ちがいるかチェック
+      const hasReactionCard = player.field.some(fieldCard => 
+        fieldCard.abilities && fieldCard.abilities.some(a => a.type === '反応')
+      );
+      
+      if (!hasReactionCard) {
+        return { success: false, message: '自フィールドに反応持ちカードがいません' };
+      }
+      
+      // 条件2: 5IP以上あるかチェック
+      if (player.points < 5) {
+        return { success: false, message: 'IPが不足しています（5IP必要）' };
+      }
+      
+      // 効果実行: IP消費 + ブナシメジ生成
+      player.points -= 5;
+      const fieldId = `bunashimeji_${Date.now()}_${Math.random()}`;
+      const bunashimejiCard = {
+        id: 'mushroom',
+        name: 'ブナシメジ',
+        fieldId: fieldId,
+        instanceId: fieldId,
+        abilities: [
+          {
+            type: '強化',
+            cost: 1,
+            description: '自フィールドに反応持ちがいる場合、5IP消費してブナシメジを生成する'
+          },
+          {
+            type: '永続',
+            cost: 2,
+            description: '１ラウンドにつき一度のみ、自分の反応持ちが追放された場合、自分のブナシメジを一体追放しなければならない'
+          }
+        ],
+        isFatigued: false
+      };
+      player.field.push(bunashimejiCard);
+      console.log('ブナシメジ生成:', { player: player.name, card: bunashimejiCard.name });
+      return { success: true, message: '5IP消費してブナシメジを生成しました' };
+    }
+
+    // 増加IP+1効果
+    if (ability.description.includes('増加IP+1') || ability.description.includes('増加IP＋1')) {
+      player.ipIncrease = (player.ipIncrease || 10) + 1;
+      console.log(`${player.name}の増加IPが${player.ipIncrease}になりました`);
+      return { success: true, message: '増加IP+1効果を発動しました。次のターンから毎ターンのIP獲得量が1増加します' };
+    }
+
+    // 一般的なIP消費系（統一パターンで対応）
     if (ability.description.includes('IP消費') || 
         (ability.description.includes('IP') && ability.description.includes('消費'))) {
       const ipCostMatch = ability.description.match(/(\d+)IP消費/) || 
@@ -500,19 +585,86 @@ class CardEffects {
   }
 
   // 勝利条件チェック
-  checkVictoryCondition(player, ability) {
+  checkVictoryCondition(player, ability, card) {
+    console.log('🏆 勝利条件チェック開始:', { 
+      playerName: player.name, 
+      cardName: card.name, 
+      cardId: card.id,
+      abilityDescription: ability.description,
+      playerPoints: player.points,
+      abilityCost: ability.cost 
+    });
+    
     const opponent = this.getOpponent(player);
 
-    // IP系勝利条件（統一）
+    // 基本条件：コスト数のカードを所持しているか
+    const cardCount = player.field.filter(fieldCard => fieldCard.id === card.id).length;
+    console.log('📋 基本条件チェック:', { 
+      cardId: card.id, 
+      requiredCount: ability.cost, 
+      actualCount: cardCount 
+    });
+    
+    if (cardCount < ability.cost) {
+      console.log('❌ 基本条件不満足: カード枚数不足');
+      return { success: false, message: `勝利条件を満たしていません（${card.name}が${ability.cost}体必要、現在${cardCount}体）` };
+    }
+
+    // 累計IPが40を超えている場合の勝利条件
+    if (ability.description.includes('累計IPが40を超えている場合')) {
+      console.log('🔍 IP超過条件チェック:', { playerPoints: player.points, required: 40 });
+      if (player.points > 40) {
+        console.log('🎉 勝利条件達成！IP超過で勝利');
+        // 勝利条件を満たしているので、ゲーム終了処理を行う
+        this.game.endGame(player);
+        return { success: true, message: `${player.name}の勝利！累計IPが40を超えました！`, victory: true };
+      } else {
+        console.log('❌ IP超過条件不満足');
+        return { success: false, message: `勝利条件を満たしていません（現在IP: ${player.points}/40必要）` };
+      }
+    }
+
+    // 従来のIP系勝利条件（統一）
     if (ability.description.includes('IP40以上') || ability.description.includes('IP40')) {
-      return player.points >= 40;
+      console.log('🔍 IP40以上条件チェック:', { playerPoints: player.points, required: 40 });
+      if (player.points >= 40) {
+        console.log('🎉 勝利条件達成！IP40以上で勝利');
+        this.game.endGame(player);
+        return { success: true, message: `${player.name}の勝利！`, victory: true };
+      } else {
+        console.log('❌ IP40以上条件不満足');
+        return { success: false, message: `勝利条件を満たしていません（現在IP: ${player.points}/40必要）` };
+      }
+    }
+
+    // 条件なしの勝利条件
+    if (ability.description.includes('条件なし')) {
+      console.log('🎉 勝利条件達成！条件なしで勝利');
+      this.game.endGame(player);
+      return { success: true, message: `${player.name}の勝利！`, victory: true };
+    }
+
+    // 追放枚数系勝利条件
+    if (ability.description.includes('追放が10体になった時')) {
+      const exileCount = this.game.exileField ? this.game.exileField.length : 0;
+      if (exileCount >= 10) {
+        this.game.endGame(player);
+        return { success: true, message: `${player.name}の勝利！追放が10体達成！`, victory: true };
+      } else {
+        return { success: false, message: `勝利条件を満たしていません（現在追放: ${exileCount}/10必要）` };
+      }
     }
 
     // フィールド枚数系
     const fieldCountMatch = ability.description.match(/自フィールドが?(\d+)枚以上/);
     if (fieldCountMatch) {
       const requiredCount = parseInt(fieldCountMatch[1]);
-      return player.field.length >= requiredCount;
+      if (player.field.length >= requiredCount) {
+        this.game.endGame(player);
+        return { success: true, message: `${player.name}の勝利！`, victory: true };
+      } else {
+        return { success: false, message: `勝利条件を満たしていません（現在フィールド: ${player.field.length}/${requiredCount}必要）` };
+      }
     }
 
     // 侵略回数系
@@ -520,7 +672,12 @@ class CardEffects {
       const invasionCountMatch = ability.description.match(/侵略した回数が(\d+)を?超えていた場合/);
       if (invasionCountMatch) {
         const requiredCount = parseInt(invasionCountMatch[1]);
-        return this.getInvasionCount(player.id) > requiredCount;
+        if (this.getInvasionCount(player.id) > requiredCount) {
+          this.game.endGame(player);
+          return { success: true, message: `${player.name}の勝利！`, victory: true };
+        } else {
+          return { success: false, message: `勝利条件を満たしていません（現在侵略回数: ${this.getInvasionCount(player.id)}/${requiredCount}必要）` };
+        }
       }
     }
     // 複数体疲労させる
@@ -644,131 +801,6 @@ class CardEffects {
   generateToNeutral(ability) {
     // 中立フィールドへのカード生成（実装簡略化）
     return { success: true, message: '中立フィールドにカードを生成しました' };
-  }
-
-  // 未実装効果チェック機能（DBベース）
-  checkUnimplementedEffect(ability, cardId, abilityIndex) {
-    // DBのステータスを確認
-    const effectStatus = this.statusDB.getEffectStatus(cardId, abilityIndex);
-    
-    // DBでbrokenと記録されている場合は未実装扱い
-    if (effectStatus.status === 'broken') {
-      return {
-        feature: 'DB記録：動作不良',
-        priority: '高',
-        reason: 'データベースで動作不良として記録されています',
-        matchedText: ability.description,
-        abilityType: ability.type,
-        dbStatus: effectStatus
-      };
-    }
-    
-    // 従来のパターンマッチングも継続（未知の問題検出用）
-    return this.checkUnimplementedEffectLegacy(ability);
-  }
-
-  // 従来の未実装効果チェック（レガシー）
-  checkUnimplementedEffectLegacy(ability) {
-    const description = ability.description;
-    
-    // 🚨 高優先度未実装効果
-    const highPriorityUnimplemented = [
-      {
-        pattern: /１ラウンドで侵略した回数が(\d+)を?超えていた場合/,
-        feature: '侵略回数追跡システム',
-        priority: '高',
-        reason: '勝利条件に直接影響'
-      },
-      {
-        pattern: /自フィールドに同種がいない場合/,
-        feature: '条件付き効果基盤',
-        priority: '高',
-        reason: '複数カードで使用される基本機能'
-      },
-      {
-        pattern: /相手の反応持ちの数だけ/,
-        feature: '複雑反応効果（カウント系）',
-        priority: '高',
-        reason: '反応システムの完成度に影響'
-      }
-    ];
-    
-    // 🔶 中優先度未実装効果
-    const mediumPriorityUnimplemented = [
-      {
-        pattern: /自分の反応持ちカードの効果を発動できる/,
-        feature: '手動反応発動システム',
-        priority: '中',
-        reason: 'UI連携が必要な高度機能'
-      },
-      {
-        pattern: /中立フィールドの同種を回復する/,
-        feature: '中立フィールド操作',
-        priority: '中',
-        reason: '水棲系カードの完全実装に必要'
-      },
-      {
-        pattern: /(\d+)体疲労させる/,
-        feature: '複数体効果',
-        priority: '中',
-        reason: '複数対象選択システム'
-      },
-      {
-        pattern: /好きなだけ.*置く/,
-        feature: '任意数配置効果',
-        priority: '中',
-        reason: '複雑な選択システム'
-      },
-      {
-        pattern: /１ラウンドにつき一度のみ/,
-        feature: 'ラウンド制限システム',
-        priority: '中',
-        reason: 'ゲームフロー管理'
-      }
-    ];
-    
-    // 🔷 低優先度未実装効果
-    const lowPriorityUnimplemented = [
-      {
-        pattern: /反応持ちを一体追放/,
-        feature: '特定条件追放（反応持ち）',
-        priority: '低',
-        reason: '既存機能の拡張'
-      },
-      {
-        pattern: /反応持ちを一体疲労させ/,
-        feature: '特定条件疲労（反応持ち）',
-        priority: '低',
-        reason: '既存機能の拡張'
-      },
-      {
-        pattern: /反応持ちが(\d+)体以上いる場合/,
-        feature: '反応持ち数勝利条件',
-        priority: '低',
-        reason: '特殊勝利条件'
-      }
-    ];
-    
-    // 全ての未実装パターンをチェック
-    const allUnimplemented = [
-      ...highPriorityUnimplemented,
-      ...mediumPriorityUnimplemented,
-      ...lowPriorityUnimplemented
-    ];
-    
-    for (const unimpl of allUnimplemented) {
-      if (unimpl.pattern.test(description)) {
-        return {
-          feature: unimpl.feature,
-          priority: unimpl.priority,
-          reason: unimpl.reason,
-          matchedText: description.match(unimpl.pattern)[0],
-          abilityType: ability.type
-        };
-      }
-    }
-    
-    return null; // 実装済み効果
   }
 }
 

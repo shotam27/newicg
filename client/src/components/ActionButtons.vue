@@ -13,6 +13,10 @@
       >
         ターンパス
       </button>
+      <!-- デバッグボタン -->
+      <button @click="debugSetIP" class="debug-btn">
+        デバッグ: IP40にセット
+      </button>
     </div>
     <!-- その他のフェーズの場合 -->
     <div v-else class="other-actions">
@@ -38,6 +42,11 @@ export default {
     isMyTurn: {
       type: Boolean,
       required: true,
+    },
+  },
+  methods: {
+    debugSetIP() {
+      this.$emit("debug-set-ip", { ip: 50 });
     },
   },
 };

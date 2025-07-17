@@ -343,6 +343,9 @@ class GameEngine {
     
     console.log('現在のプレイヤー:', this.players[this.currentPlayerIndex].name);
     
+    // 敵ターン開始時効果を自動発動
+    this.triggerEnemyTurnStartEffects();
+    
     this.emit('phase-change', {
       phase: 'playing',
       currentPlayer: this.players[this.currentPlayerIndex].name
@@ -411,13 +414,13 @@ class GameEngine {
     // 相手カード選択が必要な効果かチェック
     if (this.needsTargetSelection(ability)) {
       console.log('対象選択が必要な効果です');
-      this.startTargetSelection(player, card, ability);
+      this.startTargetSelection(player, card, ability, card.id, abilityIndex);
       return;
     }
 
     // 効果発動
     console.log('アビリティ実行開始:', { player: player.name, card: card.name, ability: ability.description });
-    const result = this.cardEffects.executeAbility(player, card, ability);
+    const result = this.cardEffects.executeAbility(player, card, ability, card.id, abilityIndex);
     console.log('アビリティ実行結果:', result);
     
     if (result.success) {
@@ -475,9 +478,9 @@ class GameEngine {
   }
 
   // 対象選択開始
-  startTargetSelection(player, card, ability) {
+  startTargetSelection(player, card, ability, cardId, abilityIndex) {
     this.phase = 'target-selection';
-    this.pendingAbility = { player, card, ability };
+    this.pendingAbility = { player, card, ability, cardId, abilityIndex };
     
     const opponent = this.players.find(p => p.id !== player.id);
     const validTargets = this.getValidTargets(ability, opponent);
@@ -545,33 +548,32 @@ class GameEngine {
       console.log('対象選択フェーズではありません');
       return;
     }
-    
-    const { player, card, ability } = this.pendingAbility;
+      const { player, card, ability, cardId, abilityIndex } = this.pendingAbility;
     
     if (player.id !== playerId) {
       console.log('対象選択権限がありません');
       return;
     }
-    
+
     const opponent = this.players.find(p => p.id !== player.id);
     const targetCard = opponent.field.find(c => c.fieldId === targetFieldId);
-    
+
     if (!targetCard) {
       console.log('対象カードが見つかりません');
       return;
     }
-    
+
     // 対象が有効かチェック
     const validTargets = this.getValidTargets(ability, opponent);
     if (!validTargets.find(t => t.fieldId === targetFieldId)) {
       console.log('無効な対象です');
       return;
     }
-    
+
     console.log('対象選択完了:', { target: targetCard.name });
-    
+
     // 効果を実行（対象指定付き）
-    const result = this.cardEffects.executeAbilityWithTarget(player, card, ability, targetCard);
+    const result = this.cardEffects.executeAbilityWithTarget(player, card, ability, targetCard, cardId, abilityIndex);
     console.log('対象指定効果実行結果:', result);
     
     if (result.success) {
@@ -623,6 +625,57 @@ class GameEngine {
     this.broadcastGameState();
   }
 
+  // 反応カード選択処理
+  handleReactionSelection(playerId, reactionFieldId) {
+    console.log('反応カード選択受信:', { playerId, reactionFieldId });
+    
+    const player = this.players.find(p => p.id === playerId);
+    if (!player) {
+      console.log('プレイヤーが見つかりません');
+      return;
+    }
+
+    // 反応カードを探す
+    const reactionCard = player.field.find(c => 
+      (c.fieldId === reactionFieldId || c.instanceId === reactionFieldId) && 
+      !c.isFatigued && 
+      c.abilities && 
+      c.abilities.some(a => a.type === '反応')
+    );
+
+    if (!reactionCard) {
+      console.log('反応カードが見つかりません:', reactionFieldId);
+      return;
+    }
+
+    // 反応アビリティを実行
+    const reactionAbility = reactionCard.abilities.find(a => a.type === '反応');
+    if (reactionAbility) {
+      console.log('反応効果実行:', { cardName: reactionCard.name, ability: reactionAbility.description });
+      
+      const result = this.cardEffects.executeAbility(player, reactionCard, reactionAbility);
+      
+      if (result.success) {
+        // 反応カードを疲労させる
+        reactionCard.isFatigued = true;
+        
+        this.emit('reaction-triggered', {
+          player: player.name,
+          cardName: reactionCard.name,
+          ability: reactionAbility.description,
+          result: result.message,
+          trigger: '手動発動'
+        });
+        
+        console.log('手動反応発動成功:', { player: player.name, card: reactionCard.name, result: result.message });
+      } else {
+        console.log('手動反応発動失敗:', result.message);
+      }
+    }
+
+    this.broadcastGameState();
+  }
+
   handlePassTurn(playerId) {
     console.log('=== handlePassTurn 開始 ===');
     console.log('フェーズ:', this.phase);
@@ -666,6 +719,69 @@ class GameEngine {
     }
   }
 
+  // デバッグ獲得処理
+  handleDebugAcquire(playerId, cardId) {
+    console.log('デバッグ獲得処理:', { playerId, cardId });
+    
+    if (this.phase !== 'auction') {
+      console.log('オークションフェーズではないためデバッグ獲得無効');
+      return;
+    }
+    
+    const player = this.players.find(p => p.id === playerId);
+    if (!player) {
+      console.log('プレイヤーが見つかりません');
+      return;
+    }
+
+    // 中立フィールドからカードを探す
+    const neutralCard = this.neutralField.find(c => c.fieldId === cardId);
+    if (!neutralCard) {
+      console.log('中立フィールドにカードが見つかりません:', cardId);
+      return;
+    }
+
+    // 新しいインスタンスを作成
+    const newCard = {
+      ...neutralCard,
+      instanceId: `${neutralCard.id}_${Date.now()}_${player.id}`,
+      fieldId: `${neutralCard.id}_${Date.now()}_${player.id}`,
+      isFatigued: false // デバッグ獲得時は疲労しない
+    };
+
+    // プレイヤーのフィールドに追加
+    player.field.push(newCard);
+
+    // 獲得時効果をチェック
+    const onAcquireAbilities = newCard.abilities?.filter(ability => ability.type === '獲得時') || [];
+    onAcquireAbilities.forEach(ability => {
+      console.log('獲得時効果チェック:', { cardName: newCard.name, isFatigued: newCard.isFatigued, abilities: onAcquireAbilities.length });
+      
+      // IP獲得効果をチェック
+      if (ability.description.includes('IP') || ability.description.includes('ポイント')) {
+        const ipMatch = ability.description.match(/[＋+](\d+)IP/) || 
+                       ability.description.match(/IP[＋+](\d+)/) || 
+                       ability.description.match(/(\d+)IP獲得/);
+        if (ipMatch) {
+          const ipGain = parseInt(ipMatch[1]);
+          player.points += ipGain;
+          console.log(`デバッグ獲得時効果: ${player.name}が${ipGain}IP獲得`);
+        }
+      }
+    });
+
+    console.log(`デバッグ獲得完了: ${player.name}が${newCard.name}を獲得`);
+    
+    // 全プレイヤーに結果を送信
+    this.emit('auction-result', {
+      type: 'debug-acquire',
+      player: player.name,
+      cardName: newCard.name
+    });
+
+    this.broadcastGameState();
+  }
+
   nextPlayerTurn() {
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % 2;
     
@@ -681,7 +797,8 @@ class GameEngine {
     
     // ターン開始時処理
     this.players.forEach(player => {
-      player.points += 10; // ポイント支給
+      // 増加IPに基づいてポイント支給
+      player.points += player.ipIncrease || 10;
       player.hasActed = false; // 行動フラグをリセット
       
       // カード疲労回復
@@ -713,11 +830,25 @@ class GameEngine {
   }
 
   endGame(winner) {
+    console.log('🏁 ゲーム終了処理開始:', { 
+      winnerName: winner.name, 
+      winnerId: winner.id,
+      currentPhase: this.phase 
+    });
+    
     this.phase = 'ended';
-    this.emit('game-end', {
+    
+    console.log('📡 gameEndイベント送信:', { 
+      winner: winner.name, 
+      message: `${winner.name}の勝利！` 
+    });
+    
+    this.emit('gameEnd', {
       winner: winner.name,
       message: `${winner.name}の勝利！`
     });
+    
+    console.log('✅ ゲーム終了処理完了');
   }
 
   handlePlayerDisconnect(playerId) {
@@ -756,6 +887,7 @@ class GameEngine {
         [player.id]: {
           name: player.name,
           ip: player.points,
+          ipIncrease: 10, // 毎ターンの増加IP
           field: player.field
         }
       },
@@ -768,6 +900,7 @@ class GameEngine {
       gameState.players[opponent.id] = {
         name: opponent.name,
         ip: opponent.points,
+        ipIncrease: 10, // 相手の増加IP
         field: opponent.field.map(card => ({
           ...card,
           abilities: [] // 相手のカード詳細は隠す
@@ -781,6 +914,44 @@ class GameEngine {
   emit(event, data) {
     this.players.forEach(player => {
       player.socket.emit(event, data);
+    });
+  }
+
+  // 敵ターン開始時効果を自動発動
+  triggerEnemyTurnStartEffects() {
+    console.log('敵ターン開始時効果チェック開始');
+    
+    this.players.forEach(player => {
+      if (!player.field) return;
+      
+      const enemyTurnStartCards = player.field.filter(card => 
+        card.abilities && 
+        card.abilities.some(ability => ability.type === '敵ターン開始時') &&
+        !card.isFatigued
+      );
+      
+      console.log(`${player.name}の敵ターン開始時効果を持つカード:`, enemyTurnStartCards.map(c => c.name));
+      
+      enemyTurnStartCards.forEach(card => {
+        const enemyTurnStartAbilities = card.abilities.filter(ability => ability.type === '敵ターン開始時');
+        
+        enemyTurnStartAbilities.forEach(ability => {
+          console.log('敵ターン開始時効果発動:', { 
+            プレイヤー: player.name,
+            カード: card.name, 
+            効果: ability.description 
+          });
+          
+          const result = this.cardEffects.executeAbility(player, card, ability);
+          
+          if (result.success) {
+            this.emit('message', {
+              text: `${player.name}の${card.name}: ${result.message}`,
+              type: 'info'
+            });
+          }
+        });
+      });
     });
   }
 
