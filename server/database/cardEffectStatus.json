@@ -59,27 +59,29 @@
       "cardId": "cactus",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-16T12:34:41.648Z",
-      "testCount": 6,
+      "lastTested": "2025-07-17T11:57:18.080Z",
+      "testCount": 7,
       "notes": "",
       "reportedBy": [
         "gsgg",
         "grg",
         "ads",
         "dada",
-        "dadaw"
+        "dadaw",
+        "fefefe"
       ]
     },
     "bee_1": {
       "cardId": "bee",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-16T11:05:20.132Z",
-      "testCount": 12,
+      "lastTested": "2025-07-17T12:38:50.217Z",
+      "testCount": 14,
       "notes": "",
       "reportedBy": [
         "user",
-        "dadad"
+        "dadad",
+        "dada"
       ]
     },
     "bee_0": {
@@ -162,8 +164,81 @@
       "reportedBy": [
         "user"
       ]
+    },
+    "tulip_1": {
+      "cardId": "tulip",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-17T12:47:47.251Z",
+      "testCount": 5,
+      "notes": "",
+      "reportedBy": [
+        "fafa",
+        "fsf",
+        "dada"
+      ]
+    },
+    "tulip_2": {
+      "cardId": "tulip",
+      "abilityIndex": 2,
+      "status": "working",
+      "lastTested": "2025-07-17T12:47:47.253Z",
+      "testCount": 5,
+      "notes": "",
+      "reportedBy": [
+        "fafa",
+        "fsf",
+        "dada"
+      ]
+    },
+    "dugong_0": {
+      "cardId": "dugong",
+      "abilityIndex": 0,
+      "status": "working",
+      "lastTested": "2025-07-17T11:55:21.282Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "gegeg"
+      ]
+    },
+    "gazelle_0": {
+      "cardId": "gazelle",
+      "abilityIndex": 0,
+      "status": "working",
+      "lastTested": "2025-07-17T12:36:31.085Z",
+      "testCount": 4,
+      "notes": "",
+      "reportedBy": [
+        "dada",
+        "user",
+        "fefef"
+      ]
+    },
+    "tulip_0": {
+      "cardId": "tulip",
+      "abilityIndex": 0,
+      "status": "working",
+      "lastTested": "2025-07-17T12:38:52.018Z",
+      "testCount": 3,
+      "notes": "",
+      "reportedBy": [
+        "user",
+        "dada"
+      ]
+    },
+    "tulip_3": {
+      "cardId": "tulip",
+      "abilityIndex": 3,
+      "status": "working",
+      "lastTested": "2025-07-17T12:38:54.042Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "dada"
+      ]
     }
   },
-  "lastUpdated": "2025-07-16T12:34:54.391Z",
+  "lastUpdated": "2025-07-17T12:47:47.253Z",
   "version": "1.0"
 }

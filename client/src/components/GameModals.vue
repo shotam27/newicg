@@ -323,16 +323,6 @@
       </div>
     </div>
   </div>
-
-  <!-- ゲーム終了 -->
-  <div v-if="gameState === 'finished'" class="game-over">
-    <h2>ゲーム終了</h2>
-    <div class="winner-announcement">
-      <p v-if="winner">勝者: {{ winner }}</p>
-      <p v-else>引き分け</p>
-    </div>
-    <button @click="$emit('reset-game')">新しいゲーム</button>
-  </div>
 </template>
 
 <script>

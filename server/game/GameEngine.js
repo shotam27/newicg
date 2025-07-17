@@ -1,8 +1,10 @@
 const CardEffects = require('./CardEffects');
+const EventEmitter = require('events');
 
-class GameEngine {
+class GameEngine extends EventEmitter {
 
   constructor(gameId, players, cardPool) {
+    super(); // EventEmitterの初期化
     this.id = gameId;
 
     // プレイヤーが2人いることを確認
@@ -147,6 +149,7 @@ class GameEngine {
     
     // オークション結果を表示する時間を設けてからフェーズ移行
     setTimeout(() => {
+      console.log('タイムアウト後、startPlayingPhase()を呼び出し');
       this.startPlayingPhase();
     }, 3000); // 3秒間オークション結果を表示
   }
@@ -342,10 +345,13 @@ class GameEngine {
     });
     
     console.log('現在のプレイヤー:', this.players[this.currentPlayerIndex].name);
+    console.log('プレイヤー1 ポイント:', this.players[0].points);
+    console.log('プレイヤー2 ポイント:', this.players[1].points);
     
     // 敵ターン開始時効果を自動発動
     this.triggerEnemyTurnStartEffects();
     
+    console.log('phase-changeイベントを発行');
     this.emit('phase-change', {
       phase: 'playing',
       currentPlayer: this.players[this.currentPlayerIndex].name
@@ -353,6 +359,7 @@ class GameEngine {
     
     console.log('ゲーム状態をブロードキャスト');
     this.broadcastGameState();
+    console.log('startPlayingPhase完了');
   }
 
   handleCardPlay(playerId, cardInstanceId, abilityIndex) {

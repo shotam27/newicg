@@ -4,10 +4,87 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const sqlite3 = require('sqlite3').verbose();
 
 const GameEngine = require('./game/GameEngine');
 const CardEffectStatusDB = require('./database/cardEffectStatus');
-const cardData = require('../cards.json');
+
+// SQLiteデータベース接続
+const dbPath = path.join(__dirname, 'database/icg.db');
+console.log('Database path:', dbPath);
+const db = new sqlite3.Database(dbPath);
+
+// カードデータをDBから読み込む関数
+function loadCardsFromDB() {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT * FROM cards ORDER BY number ASC', (err, rows) => {
+      if (err) {
+        console.error('カードデータの読み込みエラー:', err);
+        // フォールバックとしてJSONファイルを使用
+        try {
+          const cardData = require('../cards.json');
+          console.log('フォールバック: cards.jsonから読み込み');
+          resolve(cardData);
+        } catch (fallbackErr) {
+          reject(fallbackErr);
+        }
+        return;
+      }
+      
+      const cards = rows.map(row => ({
+        number: row.number,
+        id: row.id,
+        name: row.name,
+        ...(row.traits ? { traits: JSON.parse(row.traits) } : {}),
+        abilities: JSON.parse(row.abilities)
+      }));
+      
+      const cardData = { cards };
+      console.log(`データベースから${cards.length}枚のカードを読み込みました`);
+      resolve(cardData);
+    });
+  });
+}
+
+// カードデータを初期化
+let cardData = null;
+loadCardsFromDB().then(data => {
+  cardData = data;
+}).catch(err => {
+  console.error('カードデータの初期化に失敗:', err);
+  process.exit(1);
+});
+
+// カードデータを再読み込みする関数
+function reloadCardData() {
+  loadCardsFromDB().then(data => {
+    cardData = data;
+    console.log('カードデータを再読み込みしました');
+    // 接続中のクライアントに更新を通知
+    io.emit('cardsUpdated', { message: 'カードデータが更新されました' });
+  }).catch(err => {
+    console.error('カードデータの再読み込みに失敗:', err);
+  });
+}
+
+// カードデータを取得する関数（常に最新を返す）
+function getCardData() {
+  return cardData;
+}
+
+// DBファイルの監視を設定
+const fs = require('fs');
+let dbWatcher = null;
+try {
+  dbWatcher = fs.watchFile(dbPath, (curr, prev) => {
+    if (curr.mtime !== prev.mtime) {
+      console.log('データベースファイルが更新されました');
+      setTimeout(reloadCardData, 100); // 少し遅延させて確実に書き込み完了を待つ
+    }
+  });
+} catch (err) {
+  console.log('DBファイル監視の設定に失敗:', err);
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -33,6 +110,25 @@ const io = socketIo(server, {
 
 app.use(cors());
 app.use(express.json());
+
+// カードデータ確認用API
+app.get('/api/cards', (req, res) => {
+  res.json(cardData);
+});
+
+// 特定のカードを検索するAPI
+app.get('/api/cards/search/:name', (req, res) => {
+  if (!cardData || !cardData.cards) {
+    return res.status(500).json({ error: 'カードデータが読み込まれていません' });
+  }
+  
+  const searchName = req.params.name;
+  const foundCards = cardData.cards.filter(card => 
+    card.name.includes(searchName)
+  );
+  
+  res.json({ cards: foundCards });
+});
 
 // カード効果ステータス API
 app.get('/api/effect-status/:cardId/:abilityIndex', (req, res) => {
@@ -105,7 +201,7 @@ io.on('connection', (socket) => {
       const gameId = uuidv4();
       
       try {
-        const game = new GameEngine(gameId, [opponent, player], cardData.cards);
+        const game = new GameEngine(gameId, [opponent, player], getCardData().cards);
         games.set(gameId, game);
         
         console.log('🎮 ゲーム作成完了:', {
