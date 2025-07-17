@@ -59,8 +59,8 @@
       "cardId": "cactus",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-17T11:57:18.080Z",
-      "testCount": 7,
+      "lastTested": "2025-07-17T14:02:36.271Z",
+      "testCount": 8,
       "notes": "",
       "reportedBy": [
         "gsgg",
@@ -68,7 +68,8 @@
         "ads",
         "dada",
         "dadaw",
-        "fefefe"
+        "fefefe",
+        "fgf"
       ]
     },
     "bee_1": {
@@ -206,13 +207,14 @@
       "cardId": "gazelle",
       "abilityIndex": 0,
       "status": "working",
-      "lastTested": "2025-07-17T12:36:31.085Z",
-      "testCount": 4,
+      "lastTested": "2025-07-17T14:03:40.383Z",
+      "testCount": 6,
       "notes": "",
       "reportedBy": [
         "dada",
         "user",
-        "fefef"
+        "fefef",
+        "sd"
       ]
     },
     "tulip_0": {
@@ -237,8 +239,66 @@
       "reportedBy": [
         "dada"
       ]
+    },
+    "cactus_2": {
+      "cardId": "cactus",
+      "abilityIndex": 2,
+      "status": "working",
+      "lastTested": "2025-07-17T14:03:43.391Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "fgf"
+      ]
+    },
+    "gazelle_1": {
+      "cardId": "gazelle",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-17T14:04:03.989Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "sd"
+      ]
+    },
+    "okapi_0": {
+      "cardId": "okapi",
+      "abilityIndex": 0,
+      "status": "broken",
+      "lastTested": "2025-07-17T15:28:45.502Z",
+      "testCount": 3,
+      "notes": "",
+      "reportedBy": [
+        "fef",
+        "fsfs",
+        "ggg"
+      ]
+    },
+    "ant_0": {
+      "cardId": "ant",
+      "abilityIndex": 0,
+      "status": "broken",
+      "lastTested": "2025-07-17T15:13:11.610Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "ggg"
+      ]
+    },
+    "anteater_0": {
+      "cardId": "anteater",
+      "abilityIndex": 0,
+      "status": "broken",
+      "lastTested": "2025-07-17T15:28:45.499Z",
+      "testCount": 2,
+      "notes": "",
+      "reportedBy": [
+        "ggg",
+        "feef"
+      ]
     }
   },
-  "lastUpdated": "2025-07-17T12:47:47.253Z",
+  "lastUpdated": "2025-07-17T15:28:45.502Z",
   "version": "1.0"
 }

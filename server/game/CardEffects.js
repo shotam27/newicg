@@ -1,5 +1,15 @@
 const CardEffectStatusDB = require('../database/cardEffectStatus');
 
+// エラーコード定義
+const ERROR_CODES = {
+  INSUFFICIENT_COST: 'COST_ERROR',
+  INVALID_TARGET: 'TARGET_ERROR',
+  CONDITION_NOT_MET: 'CONDITION_ERROR',
+  RESOURCE_NOT_FOUND: 'RESOURCE_ERROR',
+  ALREADY_FATIGUED: 'FATIGUE_ERROR',
+  FIELD_FULL: 'FIELD_ERROR'
+};
+
 class CardEffects {
   constructor(gameEngine) {
     this.game = gameEngine;
@@ -7,6 +17,27 @@ class CardEffects {
     this.invasionCount = {};
     // 効果ステータスDB
     this.statusDB = new CardEffectStatusDB();
+  }
+
+  // 詳細エラーレスポンス生成
+  createErrorResponse(errorCode, message, details = {}) {
+    return {
+      success: false,
+      errorCode: errorCode,
+      message: message,
+      details: details,
+      timestamp: Date.now()
+    };
+  }
+
+  // 成功レスポンス生成
+  createSuccessResponse(message, data = {}) {
+    return {
+      success: true,
+      message: message,
+      data: data,
+      timestamp: Date.now()
+    };
   }
 
   startNewRound() {
@@ -72,6 +103,32 @@ class CardEffects {
       abilityType: ability.type, 
       description: ability.description 
     });
+    
+    // 獲得時効果以外のコスト管理（獲得時効果は別途管理）
+    if (ability.type !== '獲得時' && ability.cost) {
+      if (player.points < ability.cost) {
+        console.log('コスト不足:', { 
+          cardName: card.name, 
+          requiredCost: ability.cost,
+          currentPoints: player.points,
+          abilityType: ability.type
+        });
+        return this.createErrorResponse(
+          ERROR_CODES.INSUFFICIENT_COST,
+          `コストが不足しています（${ability.cost}IP必要、現在${player.points}IP）`,
+          { required: ability.cost, current: player.points, cardName: card.name }
+        );
+      }
+      
+      // コスト消費
+      player.points -= ability.cost;
+      console.log('コスト消費:', { 
+        cardName: card.name, 
+        costPaid: ability.cost,
+        remainingPoints: player.points,
+        abilityType: ability.type
+      });
+    }
     
     try {
       let result;
@@ -368,6 +425,10 @@ class CardEffects {
 
   // 強化効果
   executeEnhancement(player, card, ability) {
+    // 共通効果を優先チェック
+    const commonResult = this.processCommonEffects(player, card, ability);
+    if (commonResult) return commonResult;
+
     // 手動反応発動システム
     if (ability.description.includes('自分の反応持ちカードの効果を発動できる')) {
       const reactionCards = player.field.filter(c => 
@@ -394,7 +455,7 @@ class CardEffects {
       return { success: true, message: '反応カード選択待ち' };
     }
 
-    // 同種を一枚疲労させる効果（前処理）
+    // 同種を一枚疲労させる効果（条件処理）
     if (ability.description.includes('同種を一枚疲労させ')) {
       const sameTypeCards = player.field.filter(c => 
         c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
@@ -403,6 +464,18 @@ class CardEffects {
       if (sameTypeCards.length > 0) {
         sameTypeCards[0].isFatigued = true;
         console.log('同種カードを疲労させました:', sameTypeCards[0].name);
+        console.log('条件達成 - 効果を継続実行');
+        // 条件達成したので効果を継続
+      } else {
+        console.log('同種疲労条件未達成:', { 
+          cardName: card.name, 
+          availableSameType: sameTypeCards.length 
+        });
+        return this.createErrorResponse(
+          ERROR_CODES.CONDITION_NOT_MET,
+          '疲労させる同種カードがありません',
+          { cardName: card.name, requiredCondition: '疲労していない同種' }
+        );
       }
     }
 
@@ -665,6 +738,10 @@ class CardEffects {
 
   // 反応効果
   executeReaction(player, card, ability) {
+    // 共通効果を優先チェック
+    const commonResult = this.processCommonEffects(player, card, ability);
+    if (commonResult) return commonResult;
+
     console.log('反応効果実行:', { 
       player: player.name, 
       card: card.name, 
@@ -692,6 +769,10 @@ class CardEffects {
 
   // 獲得時効果（疲労状態に関係なく発動）
   executeOnAcquire(player, card, ability) {
+    // 共通効果を優先チェック
+    const commonResult = this.processCommonEffects(player, card, ability);
+    if (commonResult) return commonResult;
+
     console.log('獲得時効果実行:', { 
       cardName: card.name, 
       description: ability.description,
@@ -699,68 +780,86 @@ class CardEffects {
       cardFatigued: card.isFatigued
     });
 
-    // カード回復（このカード、自身の疲労回復）
-    if (ability.description.includes('このカードを回復') || 
-        ability.description.includes('自身の疲労取り除く') ||
-        ability.description.includes('自身の疲労を取り除く')) {
+    // 自分自身の回復効果
+    if (ability.description.includes('このカードを回復する')) {
       card.isFatigued = false;
-      console.log('獲得時効果でカード回復:', card.name);
-      return { success: true, message: 'カードを回復しました' };
+      console.log('カードを回復しました:', card.name);
+      return { success: true, message: `${card.name}を回復しました` };
     }
 
-    // IP獲得（複数パターン対応）
-    const ipGainMatch = ability.description.match(/[＋+](\d+)IP/) || 
-                       ability.description.match(/IP[＋+](\d+)/) ||
-                       ability.description.match(/(\d+)IP獲得/);
+    // 中立フィールドの条件付き生成効果
+    if (ability.description.includes('中立に') && ability.description.includes('がいない場合')) {
+      console.log('条件付き中立生成効果発動:', { 
+        cardName: card.name, 
+        description: ability.description,
+        playerName: player.name
+      });
+      const result = this.generateToNeutral(ability);
+      console.log('条件付き中立生成結果:', result);
+      return result;
+    }
+
+    // 中立フィールドの同種回復効果
+    if (ability.description.includes('中立フィールドの同種を回復する')) {
+      const neutralField = this.game.neutralField || [];
+      const sameTypeCards = neutralField.filter(nc => nc.id === card.id);
+      
+      if (sameTypeCards.length > 0) {
+        // 疲労している同種カードを回復
+        const fatigueCards = sameTypeCards.filter(nc => nc.isFatigued);
+        if (fatigueCards.length > 0) {
+          fatigueCards.forEach(fc => fc.isFatigued = false);
+          console.log('中立フィールドの同種を回復しました:', fatigueCards.map(fc => fc.name));
+          return { success: true, message: `中立フィールドの${card.name}を回復しました` };
+        } else {
+          console.log('中立フィールドに疲労した同種カードがありません');
+          return { success: false, message: '中立フィールドに疲労した同種カードがありません' };
+        }
+      } else {
+        console.log('中立フィールドに同種カードがありません');
+        return { success: false, message: '中立フィールドに同種カードがありません' };
+      }
+    }
+
+    // 特定カード獲得効果
+    if (ability.description.includes('ハチを獲得する')) {
+      const templateCard = this.game.cardPool.find(c => c.id === 'bee');
+      if (templateCard) {
+        const newCard = this.createCardCopy(templateCard, true); // 疲労状態で獲得
+        if (newCard) {
+          player.field.push(newCard);
+          console.log('ハチを獲得しました:', newCard.name);
+          return { success: true, message: 'ハチを獲得しました' };
+        }
+      }
+      return { success: false, message: 'ハチの獲得に失敗しました' };
+    }
+
+    // IP獲得効果
+    const ipGainMatch = ability.description.match(/IP[＋+](\d+)/);
     if (ipGainMatch) {
       const ipGain = parseInt(ipGainMatch[1]);
       player.points += ipGain;
-      console.log('獲得時効果でIP獲得:', { player: player.name, gain: ipGain });
+      console.log('IP獲得:', { gain: ipGain, newTotal: player.points });
       return { success: true, message: `${ipGain}IP獲得しました` };
     }
 
-    // 中立フィールドにカード生成
+    // 増加IP獲得効果
+    if (ability.description.includes('増加IP＋')) {
+      const ipMatch = ability.description.match(/増加IP[＋+](\d+)/);
+      if (ipMatch) {
+        const ipGain = parseInt(ipMatch[1]);
+        // 増加IPシステムの実装（仮実装）
+        player.bonusPoints = (player.bonusPoints || 0) + ipGain;
+        console.log('増加IP獲得:', { gain: ipGain, newBonus: player.bonusPoints });
+        return { success: true, message: `増加IP${ipGain}を獲得しました` };
+      }
+    }
+
+    // 中立フィールドへの一般的なカード生成
     if (ability.description.includes('中立に') && ability.description.includes('生成')) {
       console.log('獲得時効果で中立生成:', ability.description);
       return this.generateToNeutral(ability);
-    }
-
-    // 中立フィールドの同種を回復する
-    if (ability.description.includes('中立フィールドの同種を回復する') || 
-        ability.description.includes('中立フィールドの同種を回復させる')) {
-      const neutralField = this.game.neutralField || [];
-      let count = 0;
-      for (const nc of neutralField) {
-        if (nc.id === card.id && nc.isFatigued) {
-          nc.isFatigued = false;
-          nc.fatigueRemainingTurns = 0;
-          count++;
-          console.log('中立フィールドの同種を回復:', nc.name);
-        }
-      }
-      
-      if (count > 0) {
-        return { success: true, message: `中立フィールドの同種${count}枚を回復しました` };
-      } else {
-        return { success: false, message: '中立フィールドに疲労した同種がありません' };
-      }
-    }
-
-    // ハチを獲得する
-    if (ability.description.includes('ハチを獲得する')) {
-      const cardPool = this.game.cardPool || [];
-      const beeCard = cardPool.find(c => c.name === 'ハチ' || c.id === 'bee');
-      
-      if (beeCard) {
-        const newCard = this.createCardCopy(beeCard, true); // 疲労状態で獲得
-        if (newCard) {
-          player.field.push(newCard);
-          console.log('ハチを獲得（疲労状態）:', { player: player.name, card: newCard.name });
-          return { success: true, message: 'ハチを獲得しました（疲労状態）' };
-        }
-      }
-      
-      return { success: false, message: 'ハチが見つかりません' };
     }
 
     console.log('獲得時効果（汎用）実行:', ability.description);
@@ -912,6 +1011,165 @@ class CardEffects {
     return false;
   }
 
+  // 共通効果処理関数（最適化版）
+  processCommonEffects(player, card, ability) {
+    const description = ability.description;
+    
+    // 同種を一枚疲労させる条件チェック（最優先）
+    if (description.includes('同種を一枚疲労させ')) {
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        console.log('同種疲労条件未達成:', { 
+          cardName: card.name, 
+          availableSameType: sameTypeCards.length 
+        });
+        return this.createErrorResponse(
+          ERROR_CODES.CONDITION_NOT_MET,
+          '疲労させる同種カードがありません',
+          { cardName: card.name, requiredCondition: '疲労していない同種' }
+        );
+      }
+      
+      // 条件達成：同種を疲労させる
+      sameTypeCards[0].isFatigued = true;
+      console.log('同種カードを疲労させました:', sameTypeCards[0].name);
+      console.log('条件達成 - 効果を継続実行');
+      // 条件達成したので効果を継続（returnしない）
+    }
+    
+    // 早期リターン用パターンマッチング
+    const patterns = {
+      selfRecover: /このカードを回復|自身の疲労取り除く|自身の疲労を取り除く/,
+      ipGain: /[＋+](\d+)IP|IP[＋+](\d+)|(\d+)IP獲得/,
+      neutralRecover: /中立フィールドの同種を回復する|中立フィールドの同種を回復させる/,
+      beeAcquire: /ハチを獲得する/
+    };
+
+    // 自身回復効果（最優先）
+    if (patterns.selfRecover.test(description)) {
+      if (card.isFatigued) {
+        card.isFatigued = false;
+        console.log('自身回復効果:', card.name);
+        return this.createSuccessResponse(`${card.name}を回復しました`);
+      } else {
+        return this.createErrorResponse(
+          ERROR_CODES.ALREADY_FATIGUED,
+          'カードは既に回復状態です',
+          { cardName: card.name }
+        );
+      }
+    }
+
+    // IP獲得効果
+    const ipMatch = description.match(patterns.ipGain);
+    if (ipMatch) {
+      const ipGain = parseInt(ipMatch[1] || ipMatch[2] || ipMatch[3]);
+      player.points += ipGain;
+      console.log('IP獲得効果:', { player: player.name, gain: ipGain });
+      
+      // 「同種を一枚疲労させ」が含まれている場合は複合効果として処理
+      if (description.includes('同種を一枚疲労させ')) {
+        return this.createSuccessResponse(`同種を疲労させて${ipGain}IP獲得しました`, { 
+          ipGain: ipGain,
+          condition: '同種疲労'
+        });
+      } else {
+        return this.createSuccessResponse(`${ipGain}IP獲得しました`, { ipGain: ipGain });
+      }
+    }
+
+    // 中立フィールドの同種を回復する
+    if (patterns.neutralRecover.test(description)) {
+      const result = this.processNeutralFieldRecover(card);
+      
+      // 「同種を一枚疲労させ」が含まれている場合は複合効果として処理
+      if (description.includes('同種を一枚疲労させ') && result.success) {
+        result.message = `同種を疲労させて${result.message}`;
+        result.data = { ...result.data, condition: '同種疲労' };
+      }
+      
+      return result;
+    }
+
+    // ハチを獲得する
+    if (patterns.beeAcquire.test(description)) {
+      const result = this.processBeeAcquire(player);
+      
+      // 「同種を一枚疲労させ」が含まれている場合は複合効果として処理
+      if (description.includes('同種を一枚疲労させ') && result.success) {
+        result.message = `同種を疲労させて${result.message}`;
+        result.data = { ...result.data, condition: '同種疲労' };
+      }
+      
+      return result;
+    }
+
+    return null; // 共通効果に該当なし
+  }
+
+  // 中立フィールド回復処理（分離）
+  processNeutralFieldRecover(card) {
+    const neutralField = this.game.neutralField || [];
+    let count = 0;
+    
+    for (const nc of neutralField) {
+      if (nc.id === card.id && nc.isFatigued) {
+        nc.isFatigued = false;
+        nc.fatigueRemainingTurns = 0;
+        count++;
+        console.log('中立フィールドの同種を回復:', nc.name);
+      }
+    }
+    
+    if (count > 0) {
+      return this.createSuccessResponse(`中立フィールドの同種${count}枚を回復しました`, { recoveredCount: count });
+    } else {
+      return this.createErrorResponse(
+        ERROR_CODES.CONDITION_NOT_MET,
+        '中立フィールドに疲労した同種がありません',
+        { cardId: card.id }
+      );
+    }
+  }
+
+  // ハチ獲得処理（分離）
+  processBeeAcquire(player) {
+    const cardPool = this.game.cardPool || [];
+    const beeCard = cardPool.find(c => c.name === 'ハチ' || c.id === 'bee');
+    
+    if (!beeCard) {
+      return this.createErrorResponse(
+        ERROR_CODES.RESOURCE_NOT_FOUND,
+        'ハチが見つかりません',
+        { requestedCard: 'ハチ' }
+      );
+    }
+    
+    // フィールド容量チェック（最大20枚と仮定）
+    if (player.field.length >= 20) {
+      return this.createErrorResponse(
+        ERROR_CODES.FIELD_FULL,
+        'フィールドが満杯です',
+        { currentCount: player.field.length }
+      );
+    }
+    
+    const newCard = this.createCardCopy(beeCard, true); // 疲労状態で獲得
+    if (newCard) {
+      player.field.push(newCard);
+      console.log('ハチを獲得（疲労状態）:', { player: player.name, card: newCard.name });
+      return this.createSuccessResponse('ハチを獲得しました（疲労状態）', { acquiredCard: newCard.name });
+    }
+    
+    return this.createErrorResponse(
+      ERROR_CODES.RESOURCE_NOT_FOUND,
+      'ハチの生成に失敗しました'
+    );
+  }
+
   // ヘルパーメソッド
   getOpponent(player) {
     return this.game.players.find(p => p.id !== player.id);
@@ -982,26 +1240,49 @@ class CardEffects {
     // 中立フィールドへのカード生成（強化版）
     const neutralField = this.game.neutralField || [];
     
+    console.log('generateToNeutral 開始:', { 
+      description: ability.description,
+      neutralFieldBefore: neutralField.map(nc => `${nc.name}(${nc.id})`)
+    });
+    
     // 生成対象のカード名を抽出
     let targetCardName = null;
     let targetCardId = null;
+    let conditionCheck = false;
     
-    // パターンマッチング
+    // パターンマッチング（改善版）- 日本語文字対応
     const patterns = [
-      /中立に(\w+)がいない場合、(\w+)を生成する/,
-      /中立に(\w+)がいない場合、中立に(\w+)を生成する/,
-      /中立にいない場合、中立に(\w+)を生成する/,
-      /中立に(\w+)を生成する/
+      // 条件付き生成パターン（詳細な順序で）- 日本語文字対応
+      { regex: /獲得時、中立に([ア-ヾ一-龠]+)がいない場合、中立に([ア-ヾ一-龠]+)を生成する/, hasCondition: true, nameIndex: 2, description: '獲得時条件付き生成（中立に）' },
+      { regex: /中立に([ア-ヾ一-龠]+)がいない場合、中立に([ア-ヾ一-龠]+)を生成する/, hasCondition: true, nameIndex: 2, description: '条件付き生成（中立に）' },
+      { regex: /中立に([ア-ヾ一-龠]+)がいない場合、([ア-ヾ一-龠]+)を生成する/, hasCondition: true, nameIndex: 2, description: '条件付き生成（簡潔）' },
+      { regex: /中立にいない場合、中立に([ア-ヾ一-龠]+)を生成する/, hasCondition: true, nameIndex: 1, description: '条件付き生成（自身チェック）' },
+      // 無条件生成パターン  
+      { regex: /中立に([ア-ヾ一-龠]+)を生成する/, hasCondition: false, nameIndex: 1, description: '無条件生成' }
     ];
     
+    console.log('パターンマッチング開始:', ability.description);
+    
     for (const pattern of patterns) {
-      const match = ability.description.match(pattern);
+      const match = ability.description.match(pattern.regex);
+      console.log('パターンテスト:', { 
+        pattern: pattern.regex.source, 
+        description: pattern.description,
+        match: match ? match[0] : null,
+        hasCondition: pattern.hasCondition,
+        nameIndex: pattern.nameIndex,
+        extractedName: match ? match[pattern.nameIndex] : null
+      });
+      
       if (match) {
-        if (pattern.source.includes('がいない場合')) {
-          targetCardName = match[2] || match[1];
-        } else {
-          targetCardName = match[1];
-        }
+        targetCardName = match[pattern.nameIndex];
+        conditionCheck = pattern.hasCondition;
+        console.log('パターンマッチ成功:', { 
+          targetCardName, 
+          conditionCheck,
+          matchedPattern: pattern.regex.source,
+          description: pattern.description
+        });
         break;
       }
     }
@@ -1011,30 +1292,63 @@ class CardEffects {
       return { success: false, message: '生成対象が不明です' };
     }
     
-    // カード名からIDを推測（簡単な変換）
+    // カード名からIDを推測（完全版）
     const cardNameToId = {
+      'ゴリラ': 'gorilla',
+      'ライオン': 'lion',
+      'ガゼル': 'gazelle',
+      'サボテン': 'cactus',
+      'ハチ': 'bee',
+      'アリ': 'ant',
+      'アリクイ': 'anteater',
+      'オカピ': 'okapi',
+      'とうちゅうかそう': 'cordyceps',
+      'ブナシメジ': 'mushroom',
+      'ウサギ': 'rabbit',
+      'チューリップ': 'tulip',
+      'Mアカミミガメ': 'red_eared_slider',
+      'サンゴ': 'coral',
+      'タンポポ': 'dandelion',
+      'ハイエナ': 'hyena',
+      'ハエ': 'fly',
       'ホオジロサメ': 'great_white_shark',
-      'ジュゴン': 'dugong',
+      'Eクロロティカ': 'elysia_chlorotica',
+      'テナガザル': 'gibbon',
+      'オウム': 'parrot',
+      'スカンク': 'skunk',
+      'カ': 'mosquito',
+      '超超アルパカ': 'super_alpaca',
       'シャチ': 'orca',
       'ザトウクジラ': 'humpback_whale',
-      'ワカメ': 'wakame',
-      'Mアカミミガメ': 'red_eared_slider',
-      'ライオン': 'lion',
-      'チューリップ': 'tulip',
-      'ハチ': 'bee',
-      'サンゴ': 'coral'
+      'シャチ typeB': 'orca_type_b',
+      'トラ': 'tiger',
+      'ツル': 'crane',
+      'ニホンジカ': 'japanese_deer',
+      'マグロ': 'tuna',
+      'ジュゴン': 'dugong',
+      'ワカメ': 'seaweed'
     };
     
     targetCardId = cardNameToId[targetCardName];
+    console.log('カード名→ID変換:', { targetCardName, targetCardId });
+    
     if (!targetCardId) {
       console.log('カードIDが見つかりません:', targetCardName);
       return { success: false, message: `${targetCardName}のIDが見つかりません` };
     }
     
     // 条件チェック: 「がいない場合」の処理
-    if (ability.description.includes('がいない場合')) {
+    if (conditionCheck) {
       const existsInNeutral = neutralField.some(nc => nc.id === targetCardId);
+      console.log('条件チェック:', { 
+        targetCardName, 
+        targetCardId, 
+        existsInNeutral,
+        neutralFieldCards: neutralField.map(nc => `${nc.name}(${nc.id})`)
+      });
+      
       if (existsInNeutral) {
+        console.log('条件不満足: カードは既に中立フィールドに存在します');
         return { success: false, message: `${targetCardName}は既に中立フィールドに存在します` };
       }
     }
@@ -1042,6 +1356,12 @@ class CardEffects {
     // カードプールから対象カードを探す
     const cardPool = this.game.cardPool || [];
     const templateCard = cardPool.find(c => c.id === targetCardId);
+    
+    console.log('テンプレートカード検索:', { 
+      targetCardId, 
+      templateCard: templateCard ? templateCard.name : 'NOT FOUND',
+      cardPoolSize: cardPool.length
+    });
     
     if (!templateCard) {
       console.log('テンプレートカードが見つかりません:', targetCardId);
@@ -1053,7 +1373,12 @@ class CardEffects {
     if (newCard) {
       // 中立フィールドに追加
       neutralField.push(newCard);
-      console.log('中立フィールドにカードを生成:', newCard.name);
+      console.log('中立フィールドにカードを生成:', { 
+        cardName: newCard.name, 
+        cardId: newCard.id,
+        conditionCheck: conditionCheck,
+        neutralFieldAfter: neutralField.map(nc => `${nc.name}(${nc.id})`)
+      });
       
       // IPボーナスがある場合
       if (ability.description.includes('IP＋')) {
