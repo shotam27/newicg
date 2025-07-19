@@ -64,7 +64,7 @@ class CardEffects {
     });
     
     onAcquireAbilities.forEach(ability => {
-      // カード枚数による前提条件チェック（コスト分のカード枚数が必要）
+      // カード枚数による前提条件チェック（本来のコスト：自フィールドの同種枚数）
       if (ability.cost) {
         const cardCount = player.field.filter(fieldCard => fieldCard.id === card.id).length;
         if (cardCount < ability.cost) {
@@ -78,31 +78,11 @@ class CardEffects {
         }
       }
       
-      // IPコストチェック（獲得時効果でもコストが必要）
-      if (ability.cost && player.points < ability.cost) {
-        console.log('獲得時効果 - IP不足:', { 
-          cardName: card.name, 
-          requiredCost: ability.cost,
-          currentPoints: player.points
-        });
-        return; // IP不足で発動しない
-      }
-      
-      // IPコスト消費
-      if (ability.cost) {
-        player.points -= ability.cost;
-        console.log('獲得時効果 - IP消費:', { 
-          cardName: card.name, 
-          costPaid: ability.cost,
-          remainingPoints: player.points
-        });
-      }
-      
       console.log('獲得時効果実行:', { 
         cardName: card.name, 
         description: ability.description,
         cost: ability.cost,
-        note: '前提条件を満たして実行' 
+        note: '本来のコスト（同種カード枚数）要件を満たして実行' 
       });
       const abilityIndex = card.abilities.indexOf(ability);
       this.executeAbility(player, card, ability, card.id, abilityIndex);
@@ -118,44 +98,32 @@ class CardEffects {
       description: ability.description 
     });
     
-    // 獲得時効果以外のコスト管理（獲得時効果は別途管理）
-    // IP消費処理（効果文言にIP消費が明記されてがいる場合のみ）
+    // コスト管理: 本来のコストは自フィールドの同種カード枚数
+    // 獲得時効果以外でコストチェックを行う
     if (ability.type !== '獲得時' && ability.cost) {
-      const hasIpCostInDescription = ability.description.includes('IP消費') || 
-                                    ability.description.includes('IP消費') ||
-                                    (ability.description.includes('IP') && ability.description.includes('消費'));
-      
-      if (hasIpCostInDescription) {
-        if (player.points < ability.cost) {
-          console.log('コスト不足:', { 
-            cardName: card.name, 
-            requiredCost: ability.cost,
-            currentPoints: player.points,
-            abilityType: ability.type
-          });
-          return this.createErrorResponse(
-            ERROR_CODES.INSUFFICIENT_COST,
-            `コストが不足しています（${ability.cost}IP必要、現在${player.points}IP）`,
-            { required: ability.cost, current: player.points, cardName: card.name }
-          );
-        }
-        
-        // コスト消費
-        player.points -= ability.cost;
-        console.log('コスト消費:', { 
+      // 自フィールドの同種カード数をチェック
+      const sameTypeCards = player.field.filter(fieldCard => fieldCard.id === card.id);
+      if (sameTypeCards.length < ability.cost) {
+        console.log('コスト不足（同種カード枚数）:', { 
           cardName: card.name, 
-          costPaid: ability.cost,
-          remainingPoints: player.points,
+          requiredCost: ability.cost,
+          actualCount: sameTypeCards.length,
           abilityType: ability.type
         });
-      } else {
-        console.log('IP消費スキップ:', { 
-          cardName: card.name, 
-          abilityType: ability.type,
-          reason: '効果文言にIP消費の記載なし',
-          description: ability.description
-        });
+        return this.createErrorResponse(
+          ERROR_CODES.INSUFFICIENT_COST,
+          `コストが不足しています（同種カード${ability.cost}枚必要、現在${sameTypeCards.length}枚）`,
+          { required: ability.cost, current: sameTypeCards.length, cardName: card.name }
+        );
       }
+      
+      console.log('コスト確認完了:', { 
+        cardName: card.name, 
+        requiredCost: ability.cost,
+        actualCount: sameTypeCards.length,
+        abilityType: ability.type,
+        note: '同種カード枚数による本来のコスト要件'
+      });
     }
     
     try {
@@ -200,9 +168,16 @@ class CardEffects {
       // 効果実行結果をDBに記録
       const abilityIndex = card.abilities.indexOf(ability);
       if (abilityIndex !== -1) {
-        const status = result.success ? 'working' : 'broken';
+        // 対象選択が必要な場合や複数選択が必要な場合も正常動作とみなす
+        const isWorking = result.success || result.needsTarget || result.needsMultipleSelection;
+        const status = isWorking ? 'working' : 'broken';
         this.statusDB.setEffectStatus(card.id, abilityIndex, status, player.name);
-        console.log(`効果ステータス記録: ${card.name} (${abilityIndex}) -> ${status}`);
+        console.log(`効果ステータス記録: ${card.name} (${abilityIndex}) -> ${status}`, {
+          success: result.success,
+          needsTarget: result.needsTarget,
+          needsMultipleSelection: result.needsMultipleSelection,
+          message: result.message
+        });
       }
       
       // 疲労回避効果のチェック（獲得時効果以外）
@@ -231,7 +206,7 @@ class CardEffects {
       cardName: card.name, 
       abilityType: ability.type, 
       description: ability.description,
-      targetName: target.name
+      targetName: target ? target.name : 'null (事前チェック)'
     });
 
     try {
@@ -243,6 +218,9 @@ class CardEffects {
         case '強化':
           result = this.executeEnhancementWithTarget(player, card, ability, target);
           break;
+        case '敵ターン開始時':
+          result = this.executeEnemyTurnStartWithTarget(player, card, ability, target);
+          break;
         default:
           // 対象指定が不要な効果は通常実行
           result = this.executeAbility(player, card, ability, cardId, abilityIndex);
@@ -253,6 +231,28 @@ class CardEffects {
       return result;
     } catch (error) {
       console.error('対象指定能力実行エラー:', error);
+      return { success: false, message: 'エラーが発生しました' };
+    }
+  }
+
+  // 複数対象選択能力実行
+  executeAbilityWithMultipleTargets(player, card, ability, selectedTargets, cardId, abilityIndex) {
+    console.log('複数対象選択能力実行:', { 
+      cardName: card.name, 
+      abilityDescription: ability.description,
+      selectedTargetsCount: selectedTargets ? selectedTargets.length : 0,
+      selectedTargets: selectedTargets ? selectedTargets.map(t => t.name || t.id) : []
+    });
+
+    try {
+      // ライオンの特殊効果（追放されたカードを敵フィールドに置く）
+      if (ability.description.includes('追放されたカードを好きなだけ敵フィールドに置く')) {
+        return this.executeLionSpecialEffectWithTargets(player, card, ability, selectedTargets);
+      }
+
+      return { success: false, message: '複数選択効果の処理に失敗しました' };
+    } catch (error) {
+      console.error('複数対象選択能力実行エラー:', error);
       return { success: false, message: 'エラーが発生しました' };
     }
   }
@@ -287,23 +287,74 @@ class CardEffects {
       return { success: false, message: '対象選択が必要です', needsTarget: true };
     }
     
-    // 基本的な侵略効果（句点の有無も考慮）
-    if (ability.description.includes('1匹疲労させる') || 
-        ability.description.includes('1体疲労させる') ||
-        ability.description.includes('1匹疲労させる') || 
-        ability.description.includes('1体疲労させる')) {
-      const targetCard = this.selectTargetCard(opponent.field, 'active');
-      if (targetCard) {
-        targetCard.isFatigued = true;
-        console.log('相手のカードを疲労させました:', targetCard.name);
-        return { success: true, message: `${targetCard.name}を疲労させました` };
+    // 汎用侵略効果処理
+    const invasionResult = this.processInvasionEffects(ability, player, opponent, card);
+    if (invasionResult.processed) {
+      return invasionResult;
+    }
+
+    // ゴリラの侵略効果：同種を疲労させ、疲労済を追放する
+    if (ability.description.includes('同種を1枚疲労させ、疲労済を追放する')) {
+      console.log('ゴリラの侵略効果：同種疲労+疲労済追放');
+      
+      // 同種カードを疲労させる
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return { success: false, message: '疲労させる同種カードがありません' };
+      }
+      
+      // 同種カードを疲労させる
+      sameTypeCards[0].isFatigued = true;
+      console.log('同種カードを疲労させました:', sameTypeCards[0].name);
+      
+      // 疲労済みカードを追放する
+      const fatigueTargets = opponent.field.filter(c => c.isFatigued);
+      if (fatigueTargets.length > 0) {
+        const exileTarget = this.selectTargetCard(fatigueTargets, 'any');
+        if (exileTarget) {
+          const exileResult = this.exileTarget(exileTarget, '同種疲労後に');
+          console.log('疲労済みカードを追放しました:', exileTarget.name);
+          return { 
+            success: true, 
+            message: `${sameTypeCards[0].name}を疲労させ、${exileTarget.name}を追放しました` 
+          };
+        }
       } else {
-        console.log('疲労させる対象がありません');
-        return { success: false, message: '疲労させる対象がありません' };
+        return { 
+          success: true, 
+          message: `${sameTypeCards[0].name}を疲労させました（追放対象の疲労済みカードなし）` 
+        };
       }
     }
 
-    // IP消費系（統一）
+    // 増加IP消費系の追放効果（対象選択が必要）
+    if (ability.description.includes('増加IP') && ability.description.includes('追放')) {
+      const ipCostMatch = ability.description.match(/増加IP(\d+)消費/);
+      if (ipCostMatch) {
+        const ipCost = parseInt(ipCostMatch[1]);
+        console.log('侵略効果内の増加IP消費チェック:', { required: ipCost, current: player.ipIncrease, note: '効果文に明記された増加IP消費' });
+        
+        if (player.ipIncrease >= ipCost) {
+          // 追放対象の候補をチェック
+          const exileCandidates = opponent.field.filter(c => !c.isFatigued);
+          console.log('追放候補:', { count: exileCandidates.length, cards: exileCandidates.map(c => c.name) });
+          
+          if (exileCandidates.length > 0) {
+            console.log('対象選択が必要な効果です');
+            return { success: false, message: '対象選択が必要です', needsTarget: true };
+          } else {
+            return { success: false, message: '追放可能な対象がありません' };
+          }
+        } else {
+          return { success: false, message: `増加IPが不足しています（${ipCost}以上必要、現在${player.ipIncrease}）` };
+        }
+      }
+    }
+
+    // 通常IP消費系（効果文に明記されている場合のみ）
     if (ability.description.includes('IP消費') || 
         (ability.description.includes('IP') && ability.description.includes('消費'))) {
       const ipCostMatch = ability.description.match(/(\d+)IP消費/) || 
@@ -311,10 +362,10 @@ class CardEffects {
                          ability.description.match(/自分のIPを(\d+)消費/);
       if (ipCostMatch) {
         const ipCost = parseInt(ipCostMatch[1]);
-        console.log('IP消費チェック:', { required: ipCost, current: player.points });
+        console.log('侵略効果内のIP消費チェック:', { required: ipCost, current: player.points, note: '効果文に明記されたIP消費' });
         if (player.points >= ipCost) {
           player.points -= ipCost;
-          console.log('IP消費しました:', { cost: ipCost, remaining: player.points });
+          console.log('侵略効果でIP消費しました:', { cost: ipCost, remaining: player.points });
           
           // 疲労済追放の対応
           if (ability.description.includes('疲労済を追放する')) {
@@ -322,6 +373,16 @@ class CardEffects {
           }
           
           if (ability.description.includes('追放する')) {
+            if (ability.description.includes('1匹追放する') || ability.description.includes('1体追放する')) {
+              // 対象選択が必要
+              const exileCandidates = opponent.field.filter(c => !c.isFatigued);
+              if (exileCandidates.length > 0) {
+                console.log('対象選択が必要な効果です');
+                return { success: false, message: '対象選択が必要です', needsTarget: true };
+              } else {
+                return { success: false, message: '追放可能な対象がありません' };
+              }
+            }
             return this.executeExile(player, opponent, ability);
           }
           
@@ -333,7 +394,7 @@ class CardEffects {
           }
         } else {
           console.log('IPが不足しています');
-          return { success: false, message: 'IPが不足しています' };
+          return { success: false, message: `IPが不足しています（${ipCost}IP必要、現在${player.points}IP）` };
         }
       }
     }
@@ -351,9 +412,39 @@ class CardEffects {
   executeInvasionWithTarget(player, card, ability, target) {
     console.log('対象指定侵略効果実行:', { 
       description: ability.description, 
-      targetName: target.name, 
-      targetFatigue: target.isFatigued 
+      targetName: target ? target.name : 'null (事前チェック)', 
+      targetFatigue: target ? target.isFatigued : 'null'
     });
+    
+    // 事前チェック（target = null）の場合、ライオンの特殊効果をチェック
+    if (!target) {
+      if (ability.description.includes('追放されたカードを好きなだけ敵フィールドに置く')) {
+        console.log('ライオン特殊効果の事前チェック:', {
+          description: ability.description,
+          exileFieldCount: this.game.exileField ? this.game.exileField.length : 0,
+          exileCards: this.game.exileField ? this.game.exileField.map(c => c.name) : []
+        });
+        
+        if (!this.game.exileField || this.game.exileField.length === 0) {
+          return { success: false, message: '追放フィールドにカードがありません' };
+        }
+        
+        // 複数選択が必要であることを示すレスポンス
+        return { 
+          success: false, 
+          message: '追放されたカードを選択してください', 
+          needsMultipleSelection: true,
+          selectionTargets: this.game.exileField.map(card => ({
+            id: card.instanceId || card.fieldId || card.id,
+            name: card.name,
+            type: 'exile',
+            card: card
+          }))
+        };
+      }
+      
+      return { success: false, message: '対象が指定されていません' };
+    }
     
     // 条件付き侵略効果
     if (ability.description.includes('自分が他に侵略持ちを所持してがいる場合')) {
@@ -464,12 +555,18 @@ class CardEffects {
       return { success: false, message: '敵のカードを対象に選択してください' };
     }
     
-    // 増加IP消費系の追放効果
+    // 増加IP消費系の追放効果（効果文に明記されている場合）
     if (ability.description.includes('増加IP2消費し、1匹追放する')) {
-      console.log('増加IP追放効果チェック:', { 
-        currentIpIncrease: player.ipIncrease, 
-        required: 2 
+      console.log('侵略効果内の増加IP追放効果チェック:', { 
+        currentIpIncrease: player.ipIncrease || 0, 
+        required: 2,
+        note: '効果文に明記された増加IP消費' 
       });
+      
+      // ipIncreaseが未定義の場合は0で初期化
+      if (typeof player.ipIncrease === 'undefined') {
+        player.ipIncrease = 0;
+      }
       
       if (player.ipIncrease >= 2) {
         player.ipIncrease -= 2;
@@ -479,21 +576,23 @@ class CardEffects {
         });
         return this.exileTarget(target, '増加IP2消費して');
       } else {
-        return { success: false, message: '増加IPが不足しています（2以上必要）' };
+        return { success: false, message: '増加IPが不足しています（2以上必要、現在' + player.ipIncrease + '）' };
       }
     }
     
-    // IP消費系の追放効果
+    // IP消費系の追放効果（効果文に明記されている場合：自身疲労回復含む）
     if (ability.description.includes('IP消費') || 
         (ability.description.includes('IP') && ability.description.includes('消費'))) {
-      const ipCostMatch = ability.description.match(/(\d+)IP消費/) || 
+      const ipCostMatch = ability.description.match(/IP(\d+)消費/) || 
+                         ability.description.match(/(\d+)IP消費/) || 
                          ability.description.match(/IPを(\d+)消費/) ||
                          ability.description.match(/自分のIPを(\d+)消費/);
       if (ipCostMatch) {
         const ipCost = parseInt(ipCostMatch[1]);
-        console.log('IP消費追放効果チェック:', { 
+        console.log('侵略効果内のIP消費追放効果チェック:', { 
           currentPoints: player.points, 
-          required: ipCost 
+          required: ipCost,
+          note: '効果文に明記されたIP消費'
         });
         
         if (player.points >= ipCost) {
@@ -502,10 +601,84 @@ class CardEffects {
             targetName: target.name,
             remainingPoints: player.points
           });
-          return this.exileTarget(target, `${ipCost}IP消費して`);
+          
+          const result = this.exileTarget(target, `${ipCost}IP消費して`);
+          
+          // 自身の疲労除去効果
+          if (ability.description.includes('自身の疲労除去する')) {
+            card.isFatigued = false;
+            console.log('追放後に自身の疲労を除去:', card.name);
+            result.message += '、自身の疲労を除去しました';
+          }
+          
+          return result;
         } else {
-          return { success: false, message: 'IPが不足しています' };
+          return { success: false, message: `IPが不足しています（${ipCost}IP必要、現在${player.points}IP）` };
         }
+      }
+    }
+
+    // ライオンの特殊効果（追放されたカードを敵フィールドに置く）
+    if (ability.description.includes('追放されたカードを好きなだけ敵フィールドに置く')) {
+      console.log('ライオン特殊効果の対象確認:', {
+        description: ability.description,
+        exileFieldCount: this.game.exileField ? this.game.exileField.length : 0,
+        exileCards: this.game.exileField ? this.game.exileField.map(c => c.name) : []
+      });
+      
+      if (!this.game.exileField || this.game.exileField.length === 0) {
+        return { success: false, message: '追放フィールドにカードがありません' };
+      }
+      
+      // 複数選択が必要であることを示すレスポンス
+      return { 
+        success: false, 
+        message: '追放されたカードを選択してください', 
+        needsMultipleSelection: true,
+        selectionTargets: this.game.exileField.map(card => ({
+          id: card.instanceId || card.fieldId || card.id,
+          name: card.name,
+          type: 'exile',
+          card: card
+        }))
+      };
+    }
+
+    // ゴリラの複合効果：同種疲労+疲労済追放（対象指定版）
+    if (ability.description.includes('同種を1枚疲労させ、疲労済を追放する')) {
+      console.log('ゴリラの対象指定追放効果:', {
+        targetName: target.name,
+        targetFatigued: target.isFatigued,
+        description: ability.description
+      });
+      
+      // 対象が疲労済みかチェック
+      if (!target.isFatigued) {
+        return { success: false, message: '疲労済みのカードを対象に選択してください' };
+      }
+      
+      // 同種カードを疲労させる
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return { success: false, message: '疲労させる同種カードがありません' };
+      }
+      
+      // 同種カードを疲労させてから追放実行
+      sameTypeCards[0].isFatigued = true;
+      console.log('同種カードを疲労させました:', sameTypeCards[0].name);
+      
+      // 疲労済みカードを追放
+      const exileResult = this.exileTarget(target, '同種疲労後に');
+      if (exileResult.success) {
+        return { 
+          success: true, 
+          message: `${sameTypeCards[0].name}を疲労させ、${target.name}を追放しました` 
+        };
+      } else {
+        return exileResult;
       }
     }
 
@@ -1279,7 +1452,73 @@ class CardEffects {
 
   // 敵ターン開始時効果
   executeEnemyTurnStart(player, card, ability) {
+    console.log('敵ターン開始時効果実行:', { 
+      description: ability.description, 
+      cardName: card.name 
+    });
+
+    // 相手のカード疲労効果
+    if (ability.description.includes('相手のカード1匹疲労させる')) {
+      const opponent = this.getOpponent(player);
+      const activeEnemyCards = opponent.field.filter(c => !c.isFatigued);
+      
+      console.log('敵ターン開始時疲労効果:', {
+        opponentFieldCount: opponent.field.length,
+        activeEnemyCards: activeEnemyCards.length,
+        cards: activeEnemyCards.map(c => c.name)
+      });
+      
+      if (activeEnemyCards.length === 0) {
+        return { success: false, message: '疲労させる対象がありません' };
+      }
+      
+      // 対象選択が必要
+      return { 
+        success: false, 
+        message: '相手のカードを選択してください', 
+        needsTarget: true,
+        validTargets: activeEnemyCards.map(card => ({
+          fieldId: card.fieldId,
+          name: card.name,
+          id: card.id
+        }))
+      };
+    }
+
     return { success: true, message: '敵ターン開始時効果を実行しました' };
+  }
+
+  // 対象指定敵ターン開始時効果
+  executeEnemyTurnStartWithTarget(player, card, ability, target) {
+    console.log('対象指定敵ターン開始時効果実行:', { 
+      description: ability.description, 
+      targetName: target.name,
+      targetFatigued: target.isFatigued,
+      cardName: card.name
+    });
+
+    // 相手のカード疲労効果
+    if (ability.description.includes('相手のカード1匹疲労させる')) {
+      const opponent = this.getOpponent(player);
+      
+      // 対象が相手のカードかチェック
+      if (!opponent.field.includes(target)) {
+        return { success: false, message: '相手のカードを選択してください' };
+      }
+      
+      // 対象が既に疲労しているかチェック
+      if (target.isFatigued) {
+        return { success: false, message: `${target.name}は既に疲労しています` };
+      }
+      
+      // 疲労させる
+      target.isFatigued = true;
+      console.log('敵ターン開始時効果で相手のカードを疲労させました:', target.name);
+      
+      return { success: true, message: `${target.name}を疲労させました` };
+    }
+
+    return { success: false, message: '対象指定処理に失敗しました' };
   }
 
   // 水棲効果
@@ -1374,17 +1613,51 @@ class CardEffects {
       }
     }
 
-    // 侵略回数系
+    // 侵略回数系（統一版）
     if (ability.description.includes('侵略した回数が') || ability.description.includes('1ラウンドで侵略した回数が')) {
-      const invasionCountMatch = ability.description.match(/侵略した回数が(\d+)を?超えていた場合/);
-      if (invasionCountMatch) {
-        const requiredCount = parseInt(invasionCountMatch[1]);
-        if (this.getInvasionCount(player.id) > requiredCount) {
-          this.game.endGame(player);
-          return { success: true, message: `${player.name}の勝利！`, victory: true };
-        } else {
-          return { success: false, message: `勝利条件を満たしていません（現在侵略回数: ${this.getInvasionCount(player.id)}/${requiredCount}必要）` };
-        }
+      // パターン1: "6超過の場合"
+      const exceedMatch = ability.description.match(/侵略した回数が(\d+)超過の場合/);
+      // パターン2: "7を超えていた場合"
+      const exceedMatch2 = ability.description.match(/侵略した回数が(\d+)を超えていた場合/);
+      // パターン3: "6回侵略した場合"（同じターンに）
+      const exactMatch = ability.description.match(/(\d+)回侵略した場合/);
+      
+      let requiredCount = 0;
+      let isExceed = false;
+      
+      if (exceedMatch) {
+        requiredCount = parseInt(exceedMatch[1]);
+        isExceed = true;
+      } else if (exceedMatch2) {
+        requiredCount = parseInt(exceedMatch2[1]);
+        isExceed = true;
+      } else if (exactMatch) {
+        requiredCount = parseInt(exactMatch[1]);
+        isExceed = false;
+      }
+      
+      const currentInvasionCount = this.getInvasionCount(player.id);
+      console.log('🔍 侵略回数条件チェック:', { 
+        requiredCount, 
+        currentCount: currentInvasionCount, 
+        isExceed,
+        description: ability.description
+      });
+      
+      let conditionMet = false;
+      if (isExceed) {
+        conditionMet = currentInvasionCount > requiredCount;
+      } else {
+        conditionMet = currentInvasionCount >= requiredCount;
+      }
+      
+      if (conditionMet) {
+        console.log('🎉 勝利条件達成！侵略回数で勝利');
+        this.game.endGame(player);
+        return { success: true, message: `${player.name}の勝利！侵略回数達成！`, victory: true };
+      } else {
+        const comparison = isExceed ? '超過' : '以上';
+        return { success: false, message: `勝利条件を満たしていません（現在侵略回数: ${currentInvasionCount}/${requiredCount}${comparison}必要）` };
       }
     }
 
@@ -1396,12 +1669,15 @@ class CardEffects {
       return aquaticCount >= 8;
     }
 
-    // 条件なし
+    // 条件なしの勝利条件（ウサギ・オカピ）
     if (ability.description.includes('条件なし')) {
-      return true;
+      console.log('🎉 勝利条件達成！条件なしで勝利');
+      this.game.endGame(player);
+      return { success: true, message: `${player.name}の勝利！`, victory: true };
     }
 
-    return false;
+    console.log('❌ 勝利条件を満たしていません:', { description: ability.description });
+    return { success: false, message: '勝利条件を満たしていません' };
   }
 
   // 共通効果処理関数（最適化版）
@@ -1435,12 +1711,84 @@ class CardEffects {
       // 条件達成したので効果を継続（returnしない）
     }
     
-    // 早期リターン用パターンマッチング
+    // 複合効果：同種を1枚疲労させ、同種を1枚生成する（ゴリラ等）
+    if (description.includes('同種を1枚疲労させ、同種を1枚生成する')) {
+      console.log('複合効果開始：同種疲労+同種生成', { cardName: card.name });
+      
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return this.createErrorResponse(
+          ERROR_CODES.CONDITION_NOT_MET,
+          '疲労させる同種カードがありません',
+          { cardName: card.name, requiredCondition: '疲労していない同種' }
+        );
+      }
+      
+      // フィールド容量チェック（最大20枚と仮定）
+      if (player.field.length >= 20) {
+        return this.createErrorResponse(
+          ERROR_CODES.FIELD_FULL,
+          'フィールドが満杯です',
+          { currentCount: player.field.length }
+        );
+      }
+      
+      // 同種を疲労させる
+      sameTypeCards[0].isFatigued = true;
+      console.log('複合効果：同種カードを疲労させました:', sameTypeCards[0].name);
+      
+      // 同種を生成する
+      const newCard = this.createCardCopy(card, true); // 疲労状態で生成
+      if (newCard) {
+        player.field.push(newCard);
+        console.log('複合効果：同種を生成しました:', { cardName: card.name, isFatigued: true });
+        return this.createSuccessResponse(
+          `${sameTypeCards[0].name}を疲労させ、${card.name}を生成しました（疲労状態）`,
+          { 
+            fatigueTarget: sameTypeCards[0].name,
+            generatedCard: card.name,
+            generatedFatigued: true
+          }
+        );
+      } else {
+        return this.createErrorResponse(
+          ERROR_CODES.RESOURCE_NOT_FOUND,
+          'カードの生成に失敗しました'
+        );
+      }
+    }
+    
+    // 汎用パターンマッチング（数字対応強化）
     const patterns = {
       selfRecover: /このカードを回復|自身の疲労除去する|自身の疲労を除去する/,
       ipGain: /[＋+](\d+)IP|IP[＋+](\d+)|(\d+)IP獲得/,
+      ipIncreaseGain: /増加IP[＋+](\d+)|増加IP(\d+)/,
+      ipConsume: /(\d+)IP消費|IPを?(\d+)消費|自分のIPを?(\d+)消費/,
       neutralRecover: /中立フィールドの同種を回復する|中立フィールドの同種を回復させる/,
-      beeAcquire: /ハチを獲得する/
+      
+      // 汎用的な生成パターン
+      sameTypeGenerate: /^同種を(\d+)?枚?生成する$|^同種を生成する$/,
+      specificGenerate: /(\w+)を(\d+)?枚?獲得する|(\w+)を生成する/,
+      
+      // 汎用的な疲労パターン  
+      enemyFatigue: /(\d+)匹疲労させる|(\d+)体疲労させる|敵の(\w+)を疲労させる/,
+      sameFatigue: /同種を(\d+)?枚?疲労させ/,
+      
+      // 汎用的な追放パターン
+      exile: /(\d+)匹追放する|(\d+)体追放する|疲労済を追放する/,
+      
+      // 汎用的な条件生成パターン
+      conditionalGenerate: /中立に(\w+)がいない場合、中立に(\w+)を生成する/,
+      conditionalNeutralGenerate: /中立にいない場合、中立に(\w+)を生成する/,
+      
+      // 汎用的な勝利条件パターン
+      invasionVictory: /(\d+)ラウンドで侵略した回数が(\d+)超過の場合|侵略した回数が(\d+)超過/,
+      ipVictory: /累?計?IPが?(\d+)を?超え|IP(\d+)以上/,
+      fieldCountVictory: /自フィールドに?カードが?(\d+)枚/,
+      noConditionVictory: /条件なし/
     };
 
     // 自身回復効果（最優先）
@@ -1474,6 +1822,59 @@ class CardEffects {
       } else {
         return this.createSuccessResponse(`${ipGain}IP獲得しました`, { ipGain: ipGain });
       }
+    }
+
+    // 増加IP獲得効果（サボテン等）
+    const ipIncreaseMatch = description.match(patterns.ipIncreaseGain);
+    if (ipIncreaseMatch) {
+      const ipIncreaseGain = parseInt(ipIncreaseMatch[1] || ipIncreaseMatch[2]);
+      if (typeof player.ipIncrease === 'undefined') {
+        player.ipIncrease = 0;
+      }
+      player.ipIncrease += ipIncreaseGain;
+      console.log('増加IP獲得効果:', { player: player.name, gain: ipIncreaseGain, total: player.ipIncrease });
+      return this.createSuccessResponse(`増加IP+${ipIncreaseGain}を獲得しました`, { 
+        ipIncreaseGain: ipIncreaseGain,
+        totalIpIncrease: player.ipIncrease 
+      });
+    }
+
+    // 汎用的な同種生成効果
+    const sameGenerateMatch = description.match(patterns.sameTypeGenerate);
+    if (sameGenerateMatch) {
+      const count = parseInt(sameGenerateMatch[1]) || 1; // デフォルト1枚
+      return this.processSameTypeGenerate(player, card, count);
+    }
+
+    // 汎用的な特定カード生成効果（ハチ等）
+    const specificGenerateMatch = description.match(patterns.specificGenerate);
+    if (specificGenerateMatch) {
+      const cardName = specificGenerateMatch[1] || specificGenerateMatch[3];
+      const count = parseInt(specificGenerateMatch[2]) || 1;
+      return this.processSpecificCardGenerate(player, cardName, count);
+    }
+
+    // 汎用的な敵疲労効果
+    const enemyFatigueMatch = description.match(patterns.enemyFatigue);
+    if (enemyFatigueMatch) {
+      const count = parseInt(enemyFatigueMatch[1] || enemyFatigueMatch[2]) || 1;
+      const specificTarget = enemyFatigueMatch[3]; // 特定カード名（アリ等）
+      return this.processEnemyFatigue(player, count, specificTarget);
+    }
+
+    // 汎用的な条件付き中立生成効果（アリ・アリクイ等）
+    const conditionalMatch = description.match(patterns.conditionalGenerate);
+    if (conditionalMatch) {
+      const checkTarget = conditionalMatch[1]; // 確認対象
+      const generateTarget = conditionalMatch[2]; // 生成対象
+      return this.processConditionalNeutralGenerate(checkTarget, generateTarget);
+    }
+
+    // 汎用的な条件付き中立生成効果（オカピ等）
+    const conditionalNeutralMatch = description.match(patterns.conditionalNeutralGenerate);
+    if (conditionalNeutralMatch) {
+      const generateTarget = conditionalNeutralMatch[1]; // 生成対象
+      return this.processConditionalNeutralGenerate(card.name, generateTarget);
     }
 
     // 中立フィールドの同種を回復する
@@ -1528,6 +1929,221 @@ class CardEffects {
         { cardId: card.id }
       );
     }
+  }
+
+  // 汎用同種生成処理（数量対応）
+  processSameTypeGenerate(player, card, count = 1) {
+    console.log('汎用同種生成:', { cardName: card.name, count: count });
+    
+    // フィールド容量チェック（最大20枚と仮定）
+    if (player.field.length + count > 20) {
+      return this.createErrorResponse(
+        ERROR_CODES.FIELD_FULL,
+        'フィールドが満杯です',
+        { currentCount: player.field.length, requestedCount: count }
+      );
+    }
+    
+    const generatedCards = [];
+    for (let i = 0; i < count; i++) {
+      const newCard = this.createCardCopy(card, true); // 疲労状態で生成
+      if (newCard) {
+        player.field.push(newCard);
+        generatedCards.push(newCard.name);
+      }
+    }
+    
+    if (generatedCards.length > 0) {
+      console.log('同種生成完了:', { player: player.name, cards: generatedCards });
+      const message = count === 1 
+        ? `${card.name}を生成しました（疲労状態）`
+        : `${card.name}を${count}枚生成しました（疲労状態）`;
+      return this.createSuccessResponse(message, { 
+        generatedCards: generatedCards,
+        count: generatedCards.length,
+        fatigued: true
+      });
+    }
+    
+    return this.createErrorResponse(
+      ERROR_CODES.RESOURCE_NOT_FOUND,
+      'カードの生成に失敗しました'
+    );
+  }
+
+  // 汎用特定カード生成処理（ハチ・アリ等）
+  processSpecificCardGenerate(player, cardName, count = 1) {
+    console.log('汎用特定カード生成:', { cardName: cardName, count: count });
+    
+    // カード名の正規化
+    const normalizedName = this.normalizeCardName(cardName);
+    
+    // フィールド容量チェック
+    if (player.field.length + count > 20) {
+      return this.createErrorResponse(
+        ERROR_CODES.FIELD_FULL,
+        'フィールドが満杯です',
+        { currentCount: player.field.length, requestedCount: count }
+      );
+    }
+    
+    const cardPool = this.game.cardPool || [];
+    const targetCard = cardPool.find(c => 
+      this.normalizeCardName(c.name) === normalizedName || 
+      c.id === cardName.toLowerCase()
+    );
+    
+    if (!targetCard) {
+      return this.createErrorResponse(
+        ERROR_CODES.RESOURCE_NOT_FOUND,
+        `${cardName}が見つかりません`,
+        { requestedCard: cardName }
+      );
+    }
+    
+    const generatedCards = [];
+    for (let i = 0; i < count; i++) {
+      const newCard = this.createCardCopy(targetCard, true); // 疲労状態で生成
+      if (newCard) {
+        player.field.push(newCard);
+        generatedCards.push(newCard.name);
+      }
+    }
+    
+    if (generatedCards.length > 0) {
+      console.log('特定カード生成完了:', { player: player.name, cards: generatedCards });
+      const message = count === 1 
+        ? `${cardName}を獲得しました（疲労状態）`
+        : `${cardName}を${count}枚獲得しました（疲労状態）`;
+      return this.createSuccessResponse(message, { 
+        generatedCards: generatedCards,
+        count: generatedCards.length
+      });
+    }
+    
+    return this.createErrorResponse(
+      ERROR_CODES.RESOURCE_NOT_FOUND,
+      `${cardName}の生成に失敗しました`
+    );
+  }
+
+  // 汎用敵疲労処理（数量・特定対象対応）
+  processEnemyFatigue(player, count = 1, specificTarget = null) {
+    console.log('汎用敵疲労処理:', { count: count, specificTarget: specificTarget });
+    
+    const opponent = this.getOpponent(player);
+    let targets = opponent.field.filter(c => !c.isFatigued);
+    
+    // 特定対象がある場合のフィルタリング
+    if (specificTarget) {
+      const normalizedTarget = this.normalizeCardName(specificTarget);
+      targets = targets.filter(c => 
+        this.normalizeCardName(c.name) === normalizedTarget ||
+        c.id === specificTarget.toLowerCase()
+      );
+    }
+    
+    if (targets.length === 0) {
+      const targetMsg = specificTarget ? `疲労していない${specificTarget}` : '疲労させる対象';
+      return this.createErrorResponse(
+        ERROR_CODES.CONDITION_NOT_MET,
+        `${targetMsg}がありません`,
+        { specificTarget: specificTarget }
+      );
+    }
+    
+    const actualCount = Math.min(count, targets.length);
+    const fatiguedCards = [];
+    
+    for (let i = 0; i < actualCount; i++) {
+      const target = this.selectTargetCard(targets.slice(i), 'active');
+      if (target) {
+        target.isFatigued = true;
+        fatiguedCards.push(target.name);
+      }
+    }
+    
+    if (fatiguedCards.length > 0) {
+      console.log('敵疲労完了:', { fatiguedCards: fatiguedCards });
+      const message = specificTarget
+        ? `${specificTarget}${fatiguedCards.length}匹を疲労させました`
+        : `${fatiguedCards.length}匹を疲労させました`;
+      return this.createSuccessResponse(message, { 
+        fatiguedCards: fatiguedCards,
+        count: fatiguedCards.length
+      });
+    }
+    
+    return this.createErrorResponse(
+      ERROR_CODES.CONDITION_NOT_MET,
+      '疲労させることができませんでした'
+    );
+  }
+
+  // カード名正規化（汎用）
+  normalizeCardName(name) {
+    return name.replace(/^M/, '').replace(/^m/, ''); // Mプレフィックス除去
+  }
+
+  // 条件付き中立生成処理（分離・共通化）
+  processConditionalNeutralGenerate(checkTarget, generateTarget) {
+    console.log('条件付き中立生成効果:', { checkTarget, generateTarget });
+    
+    // 中立フィールドを確認
+    const neutralField = this.game.neutralField || [];
+    
+    // 確認対象のカードが中立にいるかチェック
+    const hasTargetInNeutral = neutralField.some(nc => 
+      nc.name === checkTarget || nc.name === `M${checkTarget}` || nc.id === checkTarget
+    );
+    
+    if (hasTargetInNeutral) {
+      console.log(`条件不満足：中立に${checkTarget}が既に存在します`);
+      return this.createSuccessResponse(
+        `中立に${checkTarget}が既に存在するため、生成されませんでした`,
+        { condition: 'already_exists', checkTarget: checkTarget }
+      );
+    }
+    
+    // 生成対象カードを取得
+    const cardPool = this.game.cardPool || [];
+    const targetCard = cardPool.find(c => 
+      c.name === generateTarget || 
+      c.name === `M${generateTarget}` || 
+      c.id === generateTarget ||
+      (generateTarget === 'アリクイ' && c.name === 'Mアリクイ') ||
+      (generateTarget === 'アリ' && c.name === 'Mアリ') ||
+      (generateTarget === 'ライオン' && c.name === 'ライオン')
+    );
+    
+    if (!targetCard) {
+      return this.createErrorResponse(
+        ERROR_CODES.RESOURCE_NOT_FOUND,
+        `${generateTarget}カードが見つかりません`,
+        { requestedCard: generateTarget }
+      );
+    }
+    
+    // 中立フィールドに生成
+    const newCard = this.createCardCopy(targetCard, true); // 疲労状態で生成
+    if (newCard) {
+      if (!this.game.neutralField) this.game.neutralField = [];
+      this.game.neutralField.push(newCard);
+      console.log(`中立に${generateTarget}を生成:`, { card: newCard.name, isFatigued: true });
+      return this.createSuccessResponse(
+        `中立に${generateTarget}を生成しました（疲労状態）`,
+        { 
+          generatedCard: newCard.name,
+          location: 'neutral',
+          condition: `${checkTarget}が中立にいない`
+        }
+      );
+    }
+    
+    return this.createErrorResponse(
+      ERROR_CODES.RESOURCE_NOT_FOUND,
+      `${generateTarget}の生成に失敗しました`
+    );
   }
 
   // ハチ獲得処理（分離）
@@ -1590,6 +2206,104 @@ class CardEffects {
       fieldId: fieldId,
       instanceId: fieldId, // instanceIdも同じIDを設定
       isFatigued: isFatigued
+    };
+  }
+
+  // ライオンの特殊効果処理
+  executeLionSpecialEffect(player, card, ability) {
+    console.log('ライオンの特殊効果実行:', ability.description);
+    
+    if (!this.game.exileField || this.game.exileField.length === 0) {
+      return { success: false, message: '追放フィールドにカードがありません' };
+    }
+    
+    const opponent = this.getOpponent(player);
+    const exiledCards = [...this.game.exileField]; // コピーを作成
+    
+    // 簡略化：追放されたカードを全て敵フィールドに移動
+    exiledCards.forEach(exiledCard => {
+      // 追放フィールドから削除
+      const exileIndex = this.game.exileField.indexOf(exiledCard);
+      if (exileIndex !== -1) {
+        this.game.exileField.splice(exileIndex, 1);
+      }
+      
+      // 敵フィールドに追加（疲労状態で）
+      exiledCard.isFatigued = false; // 一度回復してから
+      opponent.field.push(exiledCard);
+    });
+    
+    // 相手のカード全ての疲労を除去
+    opponent.field.forEach(oppCard => {
+      oppCard.isFatigued = false;
+    });
+    
+    console.log('ライオンの特殊効果完了:', { 
+      movedCards: exiledCards.length,
+      opponentFieldSize: opponent.field.length
+    });
+    
+    return { 
+      success: true, 
+      message: `追放されたカード${exiledCards.length}枚を敵フィールドに置き、相手のカード全ての疲労を除去しました` 
+    };
+  }
+
+  // ライオンの特殊効果（複数選択対応）
+  executeLionSpecialEffectWithTargets(player, card, ability, selectedTargets) {
+    console.log('ライオンの特殊効果（複数選択）実行:', {
+      ability: ability.description,
+      selectedCount: selectedTargets ? selectedTargets.length : 0,
+      selectedTargets: selectedTargets ? selectedTargets.map(t => t.name || t.id) : []
+    });
+    
+    if (!selectedTargets || selectedTargets.length === 0) {
+      return { success: false, message: '選択されたカードがありません' };
+    }
+    
+    const opponent = this.getOpponent(player);
+    const movedCards = [];
+    
+    // 選択されたカードを追放フィールドから敵フィールドに移動
+    selectedTargets.forEach(target => {
+      // 追放フィールドから該当カードを探す
+      const exiledCard = this.game.exileField.find(card => 
+        card.instanceId === target.id || 
+        card.fieldId === target.id || 
+        card.id === target.id ||
+        card === target.card
+      );
+      
+      if (exiledCard) {
+        // 追放フィールドから削除
+        const exileIndex = this.game.exileField.indexOf(exiledCard);
+        if (exileIndex !== -1) {
+          this.game.exileField.splice(exileIndex, 1);
+        }
+        
+        // 敵フィールドに追加（回復状態で）
+        exiledCard.isFatigued = false;
+        opponent.field.push(exiledCard);
+        movedCards.push(exiledCard);
+        
+        console.log('カードを敵フィールドに移動:', exiledCard.name);
+      }
+    });
+    
+    // 相手のカード全ての疲労を除去
+    opponent.field.forEach(oppCard => {
+      oppCard.isFatigued = false;
+    });
+    
+    console.log('ライオンの特殊効果（複数選択）完了:', { 
+      movedCards: movedCards.length,
+      opponentFieldSize: opponent.field.length,
+      exileFieldSize: this.game.exileField.length
+    });
+    
+    return { 
+      success: true, 
+      message: `選択した${movedCards.length}枚のカードを敵フィールドに置き、相手のカード全ての疲労を除去しました` 
     };
   }
 
@@ -1794,6 +2508,72 @@ class CardEffects {
     }
     
     return { success: false, message: 'カードの生成に失敗しました' };
+  }
+
+  // 汎用侵略効果処理
+  processInvasionEffects(ability, player, opponent, card) {
+    const description = ability.description;
+
+    // 基本的な疲労効果パターン
+    const fatigueMatch = description.match(/([0-9]+)(?:匹|体)疲労させる/);
+    if (fatigueMatch) {
+      const count = parseInt(fatigueMatch[1]);
+      return this.processEnemyFatigue(count, opponent, 'active');
+    }
+
+    // ゴリラの複合効果：同種疲労+疲労済追放
+    if (description.includes('同種を1枚疲労させ、疲労済を追放する')) {
+      console.log('ゴリラの侵略効果：同種疲労+疲労済追放');
+      
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return { processed: true, success: false, message: '疲労させる同種カードがありません' };
+      }
+      
+      sameTypeCards[0].isFatigued = true;
+      console.log('同種カードを疲労させました:', sameTypeCards[0].name);
+      
+      const fatigueTargets = opponent.field.filter(c => c.isFatigued);
+      if (fatigueTargets.length > 0) {
+        const exileTarget = this.selectTargetCard(fatigueTargets, 'any');
+        if (exileTarget) {
+          this.exileTarget(exileTarget, '同種疲労後に');
+          return { 
+            processed: true, 
+            success: true, 
+            message: `${sameTypeCards[0].name}を疲労させ、${exileTarget.name}を追放しました` 
+          };
+        }
+      }
+      return { 
+        processed: true, 
+        success: true, 
+        message: `${sameTypeCards[0].name}を疲労させました（追放対象の疲労済みカードなし）` 
+      };
+    }
+
+    // 増加IP消費系の追放効果
+    const ipExileMatch = description.match(/増加IP([0-9]+)消費.*?追放/);
+    if (ipExileMatch) {
+      const ipCost = parseInt(ipExileMatch[1]);
+      console.log('侵略効果内の増加IP消費チェック:', { required: ipCost, current: player.ipIncrease });
+      
+      if (player.ipIncrease >= ipCost) {
+        const exileCandidates = opponent.field.filter(c => !c.isFatigued);
+        if (exileCandidates.length > 0) {
+          return { processed: true, success: false, message: '対象選択が必要です', needsTarget: true };
+        } else {
+          return { processed: true, success: false, message: '追放可能な対象がありません' };
+        }
+      } else {
+        return { processed: true, success: false, message: `増加IP${ipCost}が必要です（現在:${player.ipIncrease}）` };
+      }
+    }
+
+    return { processed: false };
   }
 }
 

@@ -59,8 +59,8 @@
       "cardId": "cactus",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-17T14:02:36.271Z",
-      "testCount": 8,
+      "lastTested": "2025-07-19T13:11:35.614Z",
+      "testCount": 16,
       "notes": "",
       "reportedBy": [
         "gsgg",
@@ -69,7 +69,15 @@
         "dada",
         "dadaw",
         "fefefe",
-        "fgf"
+        "fgf",
+        "grgrgr",
+        "dwwad",
+        "da",
+        "sdsad",
+        "dw",
+        "fsfseg",
+        "dwawd",
+        "dwda"
       ]
     },
     "bee_1": {
@@ -158,9 +166,9 @@
     "lion_0": {
       "cardId": "lion",
       "abilityIndex": 0,
-      "status": "broken",
-      "lastTested": "2025-07-19T06:15:33.563Z",
-      "testCount": 8,
+      "status": "working",
+      "lastTested": "2025-07-19T09:18:17.898Z",
+      "testCount": 10,
       "notes": "",
       "reportedBy": [
         "user"
@@ -170,8 +178,8 @@
       "cardId": "tulip",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-19T06:21:15.252Z",
-      "testCount": 11,
+      "lastTested": "2025-07-19T13:12:21.558Z",
+      "testCount": 14,
       "notes": "",
       "reportedBy": [
         "fafa",
@@ -180,7 +188,10 @@
         "fefe",
         "ggg",
         "dwdw",
-        "sfs"
+        "sfs",
+        "fefef",
+        "sdsad",
+        "dwda"
       ]
     },
     "tulip_2": {
@@ -212,8 +223,8 @@
       "cardId": "gazelle",
       "abilityIndex": 0,
       "status": "working",
-      "lastTested": "2025-07-19T05:41:31.325Z",
-      "testCount": 15,
+      "lastTested": "2025-07-19T07:30:14.913Z",
+      "testCount": 16,
       "notes": "",
       "reportedBy": [
         "dada",
@@ -232,35 +243,45 @@
       "cardId": "tulip",
       "abilityIndex": 0,
       "status": "working",
-      "lastTested": "2025-07-17T12:38:52.018Z",
-      "testCount": 3,
+      "lastTested": "2025-07-19T11:07:19.916Z",
+      "testCount": 12,
       "notes": "",
       "reportedBy": [
         "user",
-        "dada"
+        "dada",
+        "hthd"
       ]
     },
     "tulip_3": {
       "cardId": "tulip",
       "abilityIndex": 3,
       "status": "working",
-      "lastTested": "2025-07-17T12:38:54.042Z",
-      "testCount": 1,
+      "lastTested": "2025-07-19T11:07:35.049Z",
+      "testCount": 2,
       "notes": "",
       "reportedBy": [
-        "dada"
+        "dada",
+        "hthd"
       ]
     },
     "cactus_2": {
       "cardId": "cactus",
       "abilityIndex": 2,
       "status": "working",
-      "lastTested": "2025-07-19T03:12:22.149Z",
-      "testCount": 2,
+      "lastTested": "2025-07-19T13:12:37.203Z",
+      "testCount": 36,
       "notes": "",
       "reportedBy": [
         "fgf",
-        "ggg"
+        "ggg",
+        "fff",
+        "grgrgr",
+        "dwwad",
+        "da",
+        "sdsad",
+        "dw",
+        "dwawd",
+        "dwda"
       ]
     },
     "gazelle_1": {
@@ -279,8 +300,8 @@
       "cardId": "okapi",
       "abilityIndex": 0,
       "status": "broken",
-      "lastTested": "2025-07-19T05:59:43.572Z",
-      "testCount": 10,
+      "lastTested": "2025-07-19T08:40:30.267Z",
+      "testCount": 11,
       "notes": "",
       "reportedBy": [
         "fef",
@@ -290,15 +311,16 @@
         "hhh",
         "fedfe",
         "fefe",
-        "feef"
+        "feef",
+        "ddw"
       ]
     },
     "ant_0": {
       "cardId": "ant",
       "abilityIndex": 0,
-      "status": "broken",
-      "lastTested": "2025-07-19T07:15:00.816Z",
-      "testCount": 9,
+      "status": "working",
+      "lastTested": "2025-07-19T09:40:55.585Z",
+      "testCount": 10,
       "notes": "",
       "reportedBy": [
         "ggg",
@@ -307,21 +329,23 @@
         "gege",
         "dwdw",
         "fefef",
-        "dadw"
+        "dadw",
+        "fff"
       ]
     },
     "anteater_0": {
       "cardId": "anteater",
       "abilityIndex": 0,
-      "status": "broken",
-      "lastTested": "2025-07-19T07:15:00.819Z",
-      "testCount": 5,
+      "status": "working",
+      "lastTested": "2025-07-19T09:43:06.120Z",
+      "testCount": 6,
       "notes": "",
       "reportedBy": [
         "ggg",
         "feef",
         "fff",
-        "efefe"
+        "efefe",
+        "grgr"
       ]
     },
     "ant_2": {
@@ -387,8 +411,30 @@
       "reportedBy": [
         "fef"
       ]
+    },
+    "lion_2": {
+      "cardId": "lion",
+      "abilityIndex": 2,
+      "status": "working",
+      "lastTested": "2025-07-19T10:06:01.541Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "gorilla_1": {
+      "cardId": "gorilla",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-19T11:02:47.566Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "gdeg"
+      ]
     }
   },
-  "lastUpdated": "2025-07-19T07:15:00.819Z",
+  "lastUpdated": "2025-07-19T13:12:37.203Z",
   "version": "1.0"
 }

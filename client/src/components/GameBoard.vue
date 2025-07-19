@@ -12,6 +12,12 @@
       :opponent-i-p-increase="opponentIPIncrease"
     />
 
+    <!-- デバッグパネル -->
+    <DebugPanel
+      :game-state="debugGameState"
+      :socket="socket"
+    />
+
     <!-- 相手のフィールド -->
     <CardGrid
       :title="`${opponentName || '相手'}のフィールド`"
@@ -96,6 +102,7 @@ import TurnInfo from "./TurnInfo.vue";
 import CardGrid from "./CardGrid.vue";
 import AuctionModal from "./AuctionModal.vue";
 import ActionButtons from "./ActionButtons.vue";
+import DebugPanel from "./DebugPanel.vue";
 
 export default {
   name: "GameBoard",
@@ -104,6 +111,7 @@ export default {
     CardGrid,
     AuctionModal,
     ActionButtons,
+    DebugPanel,
   },
   props: {
     currentTurn: {
@@ -165,6 +173,14 @@ export default {
     isMyTurn: {
       type: Boolean,
       required: true,
+    },
+    socket: {
+      type: Object,
+      required: true,
+    },
+    debugGameState: {
+      type: Object,
+      default: () => ({}),
     },
   },
   methods: {

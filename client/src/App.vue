@@ -29,6 +29,8 @@
       :selected-card="selectedCard"
       :show-auction-modal="showAuctionModal"
       :is-my-turn="isMyTurn"
+      :socket="socket"
+      :debug-game-state="debugGameState"
       @card-click="showCardOptionsMenu"
       @card-detail="showCardDetail"
       @use-ability="useAbility"
@@ -54,6 +56,9 @@
       :show-target-selection="showTargetSelection"
       :target-selection-message="targetSelectionMessage"
       :valid-targets="validTargets"
+      :show-multiple-target-selection="showMultipleTargetSelection"
+      :multiple-target-selection-message="multipleTargetSelectionMessage"
+      :multiple-selection-targets="multipleSelectionTargets"
       :show-reaction-selection="showReactionSelection"
       :reaction-selection-message="reactionSelectionMessage"
       :valid-reaction-cards="validReactionCards"
@@ -67,6 +72,8 @@
       @close-auction-result="closeAuctionResult"
       @select-target="selectTarget"
       @cancel-target-selection="cancelTargetSelection"
+      @select-multiple-targets="selectMultipleTargets"
+      @cancel-multiple-target-selection="cancelMultipleTargetSelection"
       @select-reaction-card="selectReactionCard"
       @cancel-reaction-selection="cancelReactionSelection"
       @hide-card-options="hideCardOptionsMenu"
@@ -159,6 +166,11 @@ export default {
       validTargets: [],
       pendingAbility: null,
 
+      // 複数対象選択
+      showMultipleTargetSelection: false,
+      multipleTargetSelectionMessage: "",
+      multipleSelectionTargets: [],
+
       // 反応カード選択
       showReactionSelection: false,
       reactionSelectionMessage: "",
@@ -187,6 +199,9 @@ export default {
         amount: 0,
         type: "gain", // 'gain' or 'loss'
       },
+
+      // デバッグ用ゲーム状態
+      debugGameState: {},
     };
   },
 
@@ -249,6 +264,18 @@ export default {
         console.log("対象選択UI表示:", {
           showTargetSelection: this.showTargetSelection,
           validTargets: this.validTargets,
+        });
+        this.addMessage(data.message, "info");
+      });
+
+      this.socket.on("select-multiple-targets", (data) => {
+        console.log("select-multiple-targetsイベント受信:", data);
+        this.showMultipleTargetSelection = true;
+        this.multipleTargetSelectionMessage = data.message;
+        this.multipleSelectionTargets = data.selectionTargets;
+        console.log("複数対象選択UI表示:", {
+          showMultipleTargetSelection: this.showMultipleTargetSelection,
+          multipleSelectionTargets: this.multipleSelectionTargets,
         });
         this.addMessage(data.message, "info");
       });
@@ -376,6 +403,21 @@ export default {
             card.fieldId || card.instanceId || `exile_${card.id}_${Date.now()}`, // fieldIdをinstanceIdとしても使用
         }));
       }
+
+      // デバッグ用ゲーム状態を更新
+      this.debugGameState = {
+        turn: this.currentTurn,
+        phase: this.currentPhase,
+        currentPlayerIndex: state.currentPlayerIndex || 0,
+        players: Object.keys(state.players || {}).map((playerId, index) => ({
+          id: playerId,
+          name: state.players[playerId].name || `プレイヤー${index + 1}`,
+          points: state.players[playerId].ip || 0,
+          field: state.players[playerId].field || []
+        })),
+        neutralField: this.neutralField,
+        exileField: this.exileField
+      };
     },
 
     placeBid(data) {
@@ -613,6 +655,25 @@ export default {
       this.targetSelectionMessage = "";
       this.validTargets = [];
       this.pendingAbility = null;
+    },
+
+    selectMultipleTargets(selectedTargetIds) {
+      console.log("selectMultipleTargets呼び出し", { selectedTargetIds });
+      if (this.showMultipleTargetSelection) {
+        this.socket.emit("multiple-targets-selected", {
+          selectedTargetIds: selectedTargetIds,
+        });
+        console.log("multiple-targets-selectedイベント送信:", {
+          selectedTargetIds,
+        });
+        this.cancelMultipleTargetSelection();
+      }
+    },
+
+    cancelMultipleTargetSelection() {
+      this.showMultipleTargetSelection = false;
+      this.multipleTargetSelectionMessage = "";
+      this.multipleSelectionTargets = [];
     },
 
     selectReactionCard(reactionFieldId) {

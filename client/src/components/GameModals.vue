@@ -183,6 +183,72 @@
     </div>
   </div>
 
+  <!-- 複数対象選択モーダル -->
+  <div
+    v-if="showMultipleTargetSelection"
+    class="multiple-target-selection-modal"
+    @click="$emit('cancel-multiple-target-selection')"
+  >
+    <div class="multiple-target-selection-content" @click.stop>
+      <div class="multiple-target-selection-header">
+        <h3>対象を選択してください（複数選択可能）</h3>
+        <button
+          class="close-btn"
+          @click="$emit('cancel-multiple-target-selection')"
+        >
+          ×
+        </button>
+      </div>
+      <div class="multiple-target-selection-body">
+        <p class="target-message">{{ multipleTargetSelectionMessage }}</p>
+        <div class="selection-info">
+          <span class="selected-count"
+            >選択中: {{ selectedTargetIds.length }}枚</span
+          >
+          <span class="instruction">カードをクリックして選択/解除</span>
+        </div>
+        <div class="target-cards">
+          <div
+            v-for="target in multipleSelectionTargets"
+            :key="target.id"
+            class="target-card multiple-selectable"
+            :class="{
+              selected: selectedTargetIds.includes(target.id),
+              exile: target.type === 'exile',
+            }"
+            @click="toggleTargetSelection(target.id)"
+          >
+            <div class="target-card-name">{{ target.name }}</div>
+            <div class="target-card-type">
+              {{ target.type === "exile" ? "追放" : "" }}
+            </div>
+            <div
+              v-if="selectedTargetIds.includes(target.id)"
+              class="selection-indicator"
+            >
+              ✓
+            </div>
+          </div>
+        </div>
+        <div class="target-actions">
+          <button
+            class="confirm-selection-btn"
+            :disabled="selectedTargetIds.length === 0"
+            @click="confirmMultipleSelection"
+          >
+            決定 ({{ selectedTargetIds.length }}枚選択中)
+          </button>
+          <button
+            class="cancel-target-btn"
+            @click="$emit('cancel-multiple-target-selection')"
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 反応カード選択モーダル -->
   <div
     v-if="showReactionSelection"
@@ -402,6 +468,19 @@ export default {
       type: Array,
       default: () => [],
     },
+    // Multiple target selection modal
+    showMultipleTargetSelection: {
+      type: Boolean,
+      default: false,
+    },
+    multipleTargetSelectionMessage: {
+      type: String,
+      default: "",
+    },
+    multipleSelectionTargets: {
+      type: Array,
+      default: () => [],
+    },
     // Card options modal
     showCardOptions: {
       type: Boolean,
@@ -441,6 +520,8 @@ export default {
     "cancel-target-selection",
     "select-reaction-card",
     "cancel-reaction-selection",
+    "select-multiple-targets",
+    "cancel-multiple-target-selection",
     "hide-card-options",
     "show-detail",
     "select-for-bid",
@@ -448,14 +529,46 @@ export default {
     "reset-game",
     "close-bid-completed",
   ],
+  data() {
+    return {
+      effectStatusAPI: new EffectStatusAPI(),
+      effectStatuses: {},
+      selectedTargetIds: [], // 複数選択用の配列
+    };
+  },
   methods: {
     getPhaseDisplayName(phase) {
       const phaseNames = {
         auction: "オークション",
         playing: "プレイング",
         "target-selection": "対象選択",
+        "multiple-target-selection": "複数対象選択",
       };
       return phaseNames[phase] || phase;
+    },
+
+    // 複数選択用のメソッド
+    toggleTargetSelection(targetId) {
+      const index = this.selectedTargetIds.indexOf(targetId);
+      if (index > -1) {
+        // すでに選択されている場合は削除
+        this.selectedTargetIds.splice(index, 1);
+      } else {
+        // 選択されていない場合は追加
+        this.selectedTargetIds.push(targetId);
+      }
+    },
+
+    confirmMultipleSelection() {
+      if (this.selectedTargetIds.length > 0) {
+        this.$emit("select-multiple-targets", this.selectedTargetIds);
+        this.selectedTargetIds = []; // リセット
+      }
+    },
+
+    // 複数選択モーダルが閉じられる際のリセット
+    resetMultipleSelection() {
+      this.selectedTargetIds = [];
     },
 
     // 効果ステータス関連メソッド
@@ -690,6 +803,7 @@ export default {
 .auction-result-overlay,
 .turn-phase-notification-overlay,
 .target-selection-modal,
+.multiple-target-selection-modal,
 .card-options-modal,
 .card-detail-modal {
   position: fixed;
@@ -1035,6 +1149,121 @@ export default {
 
 .cancel-target-btn:hover {
   background: #545b62;
+}
+
+/* Multiple target selection modal styles */
+.multiple-target-selection-content {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+}
+
+.multiple-target-selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.multiple-target-selection-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.selection-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.selected-count {
+  color: #007bff;
+  font-weight: 600;
+}
+
+.instruction {
+  color: #6c757d;
+}
+
+.target-card.multiple-selectable {
+  position: relative;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.target-card.multiple-selectable:hover {
+  border-color: #007bff;
+  transform: translateY(-2px);
+}
+
+.target-card.selected {
+  border-color: #28a745;
+  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  transform: translateY(-2px);
+}
+
+.target-card.exile {
+  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+  border-left: 4px solid #ffc107;
+}
+
+.target-card-type {
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 4px;
+}
+
+.selection-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #28a745;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.confirm-selection-btn {
+  padding: 12px 24px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  margin-right: 12px;
+  transition: background 0.2s;
+}
+
+.confirm-selection-btn:hover:not(:disabled) {
+  background: #218838;
+}
+
+.confirm-selection-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
 }
 
 /* Card options modal */

@@ -16,6 +16,7 @@ export function useGameSocket({
   setPlayerIP,
   setOpponentName,
   setOpponentIP,
+  showMultipleTargetSelection, // 複数選択UI表示用の関数を追加
 }) {
   const socket = ref(null);
   const isConnected = ref(false);
@@ -50,6 +51,10 @@ export function useGameSocket({
     });
     socket.value.on('select-target', (data) => {
       addMessage(data.message, 'info');
+    });
+    socket.value.on('select-multiple-targets', (data) => {
+      addMessage(data.message, 'info');
+      showMultipleTargetSelection(data);
     });
     socket.value.on('no-valid-targets', (data) => {
       addMessage(data.message, 'warning');

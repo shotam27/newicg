@@ -165,6 +165,168 @@ app.get('/api/effect-status/all', (req, res) => {
   res.json(allStatuses);
 });
 
+// デバッグ機能: ゲーム状態管理API
+app.get('/api/debug/games', (req, res) => {
+  const gameStates = [];
+  for (const [gameId, game] of games.entries()) {
+    gameStates.push({
+      gameId: gameId,
+      players: game.players.map(p => ({ id: p.id, name: p.name })),
+      turn: game.turn,
+      phase: game.phase,
+      currentPlayer: game.players[game.currentPlayerIndex]?.name
+    });
+  }
+  res.json({ games: gameStates });
+});
+
+app.get('/api/debug/game/:gameId/state', (req, res) => {
+  const { gameId } = req.params;
+  const game = games.get(gameId);
+  
+  if (!game) {
+    return res.status(404).json({ error: 'ゲームが見つかりません' });
+  }
+  
+  const gameState = game.saveGameState();
+  res.json(gameState);
+});
+
+app.post('/api/debug/game/:gameId/restore', (req, res) => {
+  const { gameId } = req.params;
+  const { gameState } = req.body;
+  const game = games.get(gameId);
+  
+  if (!game) {
+    return res.status(404).json({ error: 'ゲームが見つかりません' });
+  }
+  
+  const result = game.restoreGameState(gameState);
+  res.json(result);
+});
+
+app.post('/api/debug/game/:gameId/quick-state', (req, res) => {
+  const { gameId } = req.params;
+  const { stateType } = req.body;
+  const game = games.get(gameId);
+  
+  if (!game) {
+    return res.status(404).json({ error: 'ゲームが見つかりません' });
+  }
+  
+  const result = game.setQuickDebugState(stateType);
+  res.json(result);
+});
+
+// デバッグ機能: ゲーム状態の保存・読み込み用ファイルストレージ
+const debugSavePath = path.join(__dirname, 'debug-saves');
+
+// デバッグ保存ディレクトリを作成
+if (!fs.existsSync(debugSavePath)) {
+  fs.mkdirSync(debugSavePath, { recursive: true });
+}
+
+app.post('/api/debug/save-state', (req, res) => {
+  const { gameId, stateName, gameState } = req.body;
+  
+  if (!gameId || !stateName || !gameState) {
+    return res.status(400).json({ error: '必要なパラメータが不足しています' });
+  }
+  
+  try {
+    const fileName = `${stateName}_${gameId}_${Date.now()}.json`;
+    const filePath = path.join(debugSavePath, fileName);
+    
+    const saveData = {
+      ...gameState,
+      savedAt: new Date().toISOString(),
+      stateName: stateName,
+      gameId: gameId
+    };
+    
+    fs.writeFileSync(filePath, JSON.stringify(saveData, null, 2));
+    
+    res.json({ 
+      success: true, 
+      message: `状態「${stateName}」を保存しました`,
+      fileName: fileName 
+    });
+  } catch (error) {
+    console.error('状態保存エラー:', error);
+    res.status(500).json({ error: `保存エラー: ${error.message}` });
+  }
+});
+
+app.get('/api/debug/saved-states', (req, res) => {
+  try {
+    const files = fs.readdirSync(debugSavePath);
+    const savedStates = files
+      .filter(file => file.endsWith('.json'))
+      .map(file => {
+        try {
+          const filePath = path.join(debugSavePath, file);
+          const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+          return {
+            fileName: file,
+            stateName: data.stateName || '名前なし',
+            gameId: data.gameId,
+            savedAt: data.savedAt,
+            description: data.description,
+            turn: data.turn,
+            phase: data.phase,
+            filePath: filePath
+          };
+        } catch (err) {
+          console.error(`ファイル読み込みエラー: ${file}`, err);
+          return null;
+        }
+      })
+      .filter(state => state !== null)
+      .sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+    
+    res.json({ savedStates });
+  } catch (error) {
+    console.error('保存状態一覧取得エラー:', error);
+    res.status(500).json({ error: `取得エラー: ${error.message}` });
+  }
+});
+
+app.get('/api/debug/saved-states/:fileName', (req, res) => {
+  const { fileName } = req.params;
+  
+  try {
+    const filePath = path.join(debugSavePath, fileName);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'ファイルが見つかりません' });
+    }
+    
+    const gameState = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    res.json(gameState);
+  } catch (error) {
+    console.error('状態読み込みエラー:', error);
+    res.status(500).json({ error: `読み込みエラー: ${error.message}` });
+  }
+});
+
+app.delete('/api/debug/saved-states/:fileName', (req, res) => {
+  const { fileName } = req.params;
+  
+  try {
+    const filePath = path.join(debugSavePath, fileName);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'ファイルが見つかりません' });
+    }
+    
+    fs.unlinkSync(filePath);
+    res.json({ success: true, message: `状態「${fileName}」を削除しました` });
+  } catch (error) {
+    console.error('状態削除エラー:', error);
+    res.status(500).json({ error: `削除エラー: ${error.message}` });
+  }
+});
+
 // ゲーム管理
 const games = new Map();
 const waitingPlayers = [];
@@ -332,6 +494,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 複数対象選択
+  socket.on('multiple-targets-selected', (data) => {
+    console.log('multiple-targets-selectedイベント受信:', data);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      console.log('ゲームでhandleMultipleTargetSelection呼び出し');
+      game.handleMultipleTargetSelection(socket.id, data.selectedTargetIds);
+    } else {
+      console.log('ゲームが見つかりません');
+    }
+  });
+
   // 反応カード選択
   socket.on('reaction-selected', (data) => {
     console.log('reaction-selectedイベント受信:', data);
@@ -340,6 +514,55 @@ io.on('connection', (socket) => {
       game.handleReactionSelection(socket.id, data.reactionFieldId);
     } else {
       console.log('ゲームが見つかりません');
+    }
+  });
+
+  // デバッグ機能: ゲーム状態保存
+  socket.on('debug-save-state', (data) => {
+    console.log('debug-save-stateイベント受信:', data);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      const gameState = game.saveGameState();
+      socket.emit('debug-state-saved', {
+        success: true,
+        gameState: gameState,
+        message: 'ゲーム状態を保存しました'
+      });
+    } else {
+      socket.emit('debug-state-saved', {
+        success: false,
+        message: 'ゲームが見つかりません'
+      });
+    }
+  });
+
+  // デバッグ機能: ゲーム状態復元
+  socket.on('debug-restore-state', (data) => {
+    console.log('debug-restore-stateイベント受信:', data);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      const result = game.restoreGameState(data.gameState);
+      socket.emit('debug-state-restored', result);
+    } else {
+      socket.emit('debug-state-restored', {
+        success: false,
+        message: 'ゲームが見つかりません'
+      });
+    }
+  });
+
+  // デバッグ機能: クイック状態設定
+  socket.on('debug-quick-state', (data) => {
+    console.log('debug-quick-stateイベント受信:', data);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      const result = game.setQuickDebugState(data.stateType);
+      socket.emit('debug-quick-state-set', result);
+    } else {
+      socket.emit('debug-quick-state-set', {
+        success: false,
+        message: 'ゲームが見つかりません'
+      });
     }
   });
 

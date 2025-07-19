@@ -16,6 +16,7 @@ class GameEngine extends EventEmitter {
       ...p,
       index: index,
       points: 10,
+      ipIncrease: 10, // 増加IPの初期値を10に設定
       field: [],
       isReady: false,
       hasActed: false // プレイングフェーズで行動したかのフラグ
@@ -397,6 +398,12 @@ class GameEngine extends EventEmitter {
     console.log('プレイフェーズ開始');
     this.phase = 'playing';
     
+    // 各プレイヤーの増加IPを10にリセット
+    this.players.forEach(player => {
+      player.ipIncrease = 10;
+      console.log(`${player.name}の増加IPを10にリセット`);
+    });
+    
     // 所持ポイントが多い方が先行（同点の場合は最初のプレイヤー）
     this.currentPlayerIndex = this.players[0].points > this.players[1].points ? 0 : 
                              this.players[1].points > this.players[0].points ? 1 : 0;
@@ -405,6 +412,9 @@ class GameEngine extends EventEmitter {
     this.players.forEach(player => {
       player.hasActed = false;
     });
+    
+    // 敵ターン開始時効果の処理済みカードをリセット
+    this.processedEnemyTurnStartCards = new Set();
     
     console.log('現在のプレイヤー:', this.players[this.currentPlayerIndex].name);
     console.log('プレイヤー1 ポイント:', this.players[0].points);
@@ -487,6 +497,14 @@ class GameEngine extends EventEmitter {
       return;
     }
 
+    // 複数選択が必要な効果かチェック
+    const multiSelectionResult = this.checkNeedsMultipleSelection(player, card, ability, card.id, abilityIndex);
+    if (multiSelectionResult && multiSelectionResult.needsMultipleSelection) {
+      console.log('複数対象選択が必要な効果です');
+      this.startMultipleTargetSelection(player, card, ability, card.id, abilityIndex, multiSelectionResult.selectionTargets);
+      return;
+    }
+
     // 効果発動
     console.log('アビリティ実行開始:', { player: player.name, card: card.name, ability: ability.description });
     const result = this.cardEffects.executeAbility(player, card, ability, card.id, abilityIndex);
@@ -540,10 +558,34 @@ class GameEngine extends EventEmitter {
   // 対象選択が必要かチェック
   needsTargetSelection(ability) {
     const description = ability.description;
+    
+    // ライオンの特殊効果は複数選択なので除外
+    if (description.includes('追放されたカードを好きなだけ敵フィールドに置く')) {
+      return false;
+    }
+    
     return description.includes('疲労させる') || 
            description.includes('追放する') || 
            description.includes('選択') ||
            (description.includes('相手') && (description.includes('カード') || description.includes('フィールド')));
+  }
+
+  // 複数選択が必要かチェック
+  checkNeedsMultipleSelection(player, card, ability, cardId, abilityIndex) {
+    // ライオンの特殊効果をチェック
+    if (ability.description.includes('追放されたカードを好きなだけ敵フィールドに置く')) {
+      // CardEffectsから選択対象情報を取得
+      const testResult = this.cardEffects.executeAbilityWithTarget(player, card, ability, null, cardId, abilityIndex);
+      
+      if (testResult && testResult.needsMultipleSelection) {
+        return {
+          needsMultipleSelection: true,
+          selectionTargets: testResult.selectionTargets
+        };
+      }
+    }
+    
+    return null;
   }
 
   // 対象選択開始
@@ -583,6 +625,28 @@ class GameEngine extends EventEmitter {
     });
   }
 
+  // 複数対象選択開始
+  startMultipleTargetSelection(player, card, ability, cardId, abilityIndex, selectionTargets) {
+    this.phase = 'multiple-target-selection';
+    this.pendingAbility = { player, card, ability, cardId, abilityIndex };
+    
+    console.log('複数対象選択開始:', {
+      ability: ability.description,
+      targetCount: selectionTargets ? selectionTargets.length : 0,
+      player: player.name,
+      targets: selectionTargets ? selectionTargets.map(t => t.name) : []
+    });
+    
+    // プレイヤーに複数対象選択を要求
+    player.socket.emit('select-multiple-targets', {
+      message: `${ability.description}の対象を選択してください（複数選択可能）`,
+      ability: ability,
+      selectionTargets: selectionTargets || []
+    });
+    
+    this.broadcastGameState();
+  }
+
   // 有効な対象を取得
   getValidTargets(ability, opponent) {
     const description = ability.description;
@@ -619,11 +683,22 @@ class GameEngine extends EventEmitter {
   handleTargetSelection(playerId, targetFieldId) {
     console.log('対象選択受信:', { playerId, targetFieldId });
     
-    if (this.phase !== 'target-selection' || !this.pendingAbility) {
-      console.log('対象選択フェーズではありません');
-      return;
+    // 通常の対象選択（侵略・強化効果等）
+    if (this.phase === 'target-selection' && this.pendingAbility) {
+      return this.handleNormalTargetSelection(playerId, targetFieldId);
     }
-      const { player, card, ability, cardId, abilityIndex } = this.pendingAbility;
+    
+    // 敵ターン開始時効果の対象選択
+    if (this.pendingTargetSelection && this.pendingTargetSelection.type === 'enemyTurnStart') {
+      return this.handleEnemyTurnStartTargetSelection(playerId, targetFieldId);
+    }
+    
+    console.log('対象選択処理対象外です');
+  }
+
+  // 通常の対象選択処理
+  handleNormalTargetSelection(playerId, targetFieldId) {
+    const { player, card, ability, cardId, abilityIndex } = this.pendingAbility;
     
     if (player.id !== playerId) {
       console.log('対象選択権限がありません');
@@ -691,6 +766,157 @@ class GameEngine extends EventEmitter {
           timestamp: new Date().toISOString()
         });
       }
+    }
+    
+    // フェーズを戻す
+    this.phase = 'playing';
+    this.pendingAbility = null;
+    
+    this.broadcastGameState();
+  }
+
+  // 敵ターン開始時効果の対象選択処理
+  handleEnemyTurnStartTargetSelection(playerId, targetFieldId) {
+    console.log('敵ターン開始時効果の対象選択処理:', { playerId, targetFieldId });
+    
+    const { playerId: expectedPlayerId, card, ability, validTargets } = this.pendingTargetSelection;
+    
+    if (playerId !== expectedPlayerId) {
+      console.log('対象選択権限がありません（敵ターン開始時）');
+      return;
+    }
+
+    // 対象カードを探す
+    let targetCard = null;
+    for (const player of this.players) {
+      const foundCard = player.field.find(c => c.fieldId === targetFieldId);
+      if (foundCard) {
+        targetCard = foundCard;
+        break;
+      }
+    }
+
+    if (!targetCard) {
+      console.log('対象カードが見つかりません（敵ターン開始時）');
+      return;
+    }
+
+    // 対象が有効かチェック
+    if (!validTargets.find(t => t.fieldId === targetFieldId)) {
+      console.log('無効な対象です（敵ターン開始時）');
+      return;
+    }
+
+    console.log('敵ターン開始時効果の対象選択完了:', { target: targetCard.name });
+
+    // 効果を実行（対象指定付き）
+    const player = this.players.find(p => p.id === playerId);
+    const result = this.cardEffects.executeAbilityWithTarget(player, card, ability, targetCard);
+    console.log('敵ターン開始時効果実行結果:', result);
+    
+    if (result.success) {
+      this.emit('message', {
+        text: `${player.name}の${card.name}: ${result.message}`,
+        type: 'info'
+      });
+      
+      console.log('敵ターン開始時効果使用成功:', { 
+        player: player.name, 
+        card: card.name, 
+        target: targetCard.name,
+        result: result.message 
+      });
+      
+      // 処理済みとしてマーク
+      if (!this.processedEnemyTurnStartCards) {
+        this.processedEnemyTurnStartCards = new Set();
+      }
+      this.processedEnemyTurnStartCards.add(card.fieldId);
+    } else {
+      console.log('敵ターン開始時効果使用失敗:', result.message);
+    }
+    
+    // 対象選択完了、待機状態を解除
+    this.pendingTargetSelection = null;
+    
+    // 残りの敵ターン開始時効果があれば継続処理
+    this.triggerEnemyTurnStartEffects();
+    
+    this.broadcastGameState();
+  }
+
+  // 複数対象選択処理
+  handleMultipleTargetSelection(playerId, selectedTargetIds) {
+    console.log('複数対象選択受信:', { playerId, selectedTargetIds });
+    
+    if (this.phase !== 'multiple-target-selection' || !this.pendingAbility) {
+      console.log('複数対象選択フェーズではありません');
+      return;
+    }
+    
+    const { player, card, ability, cardId, abilityIndex } = this.pendingAbility;
+    
+    if (player.id !== playerId) {
+      console.log('複数対象選択権限がありません');
+      return;
+    }
+    
+    if (!selectedTargetIds || selectedTargetIds.length === 0) {
+      console.log('選択された対象がありません');
+      return;
+    }
+    
+    // 選択された対象を検証して取得
+    const selectedTargets = [];
+    selectedTargetIds.forEach(targetId => {
+      if (this.exileField) {
+        const exiledCard = this.exileField.find(card => 
+          card.instanceId === targetId || 
+          card.fieldId === targetId || 
+          card.id === targetId
+        );
+        if (exiledCard) {
+          selectedTargets.push({
+            id: targetId,
+            name: exiledCard.name,
+            type: 'exile',
+            card: exiledCard
+          });
+        }
+      }
+    });
+    
+    console.log('選択対象検証完了:', {
+      requestedCount: selectedTargetIds.length,
+      validCount: selectedTargets.length,
+      targets: selectedTargets.map(t => t.name)
+    });
+
+    // 効果を実行（複数対象選択付き）
+    const result = this.cardEffects.executeAbilityWithMultipleTargets(
+      player, card, ability, selectedTargets, cardId, abilityIndex
+    );
+    console.log('複数対象選択効果実行結果:', result);
+    
+    if (result.success) {
+      card.isFatigued = true;
+      
+      this.emit('card-played', {
+        player: player.name,
+        cardName: card.name,
+        ability: ability.description,
+        targets: selectedTargets.map(t => t.name),
+        result: result.message
+      });
+      
+      console.log('複数対象選択効果使用成功:', { 
+        player: player.name, 
+        card: card.name, 
+        targets: selectedTargets.map(t => t.name),
+        result: result.message 
+      });
+    } else {
+      console.log('複数対象選択効果使用失敗:', result.message);
     }
     
     // フェーズを戻す
@@ -860,6 +1086,12 @@ class GameEngine extends EventEmitter {
   nextPlayerTurn() {
     this.currentPlayerIndex = (this.currentPlayerIndex + 1) % 2;
     
+    console.log(`ターン交代: ${this.players[this.currentPlayerIndex].name}のターン開始`);
+    
+    // 敵ターン開始時効果をトリガー（処理済みカードをリセットしてから）
+    this.processedEnemyTurnStartCards = new Set();
+    this.triggerEnemyTurnStartEffects();
+    
     this.emit('turn-change', {
       currentPlayer: this.players[this.currentPlayerIndex].name
     });
@@ -875,6 +1107,10 @@ class GameEngine extends EventEmitter {
       // 増加IPに基づいてポイント支給
       player.points += player.ipIncrease || 10;
       player.hasActed = false; // 行動フラグをリセット
+      
+      // 増加IPを10にリセット
+      player.ipIncrease = 10;
+      console.log(`${player.name}の増加IPを10にリセット`);
       
       // カード疲労回復
       player.field.forEach(card => {
@@ -996,38 +1232,83 @@ class GameEngine extends EventEmitter {
   triggerEnemyTurnStartEffects() {
     console.log('敵ターン開始時効果チェック開始');
     
-    this.players.forEach(player => {
-      if (!player.field) return;
+    // 現在のプレイヤー（ターンプレイヤー）を取得
+    const currentPlayer = this.players[this.currentPlayerIndex];
+    const opponent = this.players.find(p => p.id !== currentPlayer.id);
+    
+    console.log(`現在のターン: ${currentPlayer.name}, 敵ターン開始時効果を持つプレイヤー: ${opponent.name}`);
+    
+    if (!opponent || !opponent.field) return;
+    
+    // 処理済みカードを追跡するプロパティを初期化（ターン開始時のみ）
+    if (!this.processedEnemyTurnStartCards) {
+      this.processedEnemyTurnStartCards = new Set();
+    }
+    
+    // 相手プレイヤーの敵ターン開始時効果のみをチェック（未処理のもの）
+    const enemyTurnStartCards = opponent.field.filter(card => 
+      card.abilities && 
+      card.abilities.some(ability => ability.type === '敵ターン開始時') &&
+      !card.isFatigued &&
+      !this.processedEnemyTurnStartCards.has(card.fieldId)
+    );
+    
+    console.log(`${opponent.name}の敵ターン開始時効果を持つカード:`, enemyTurnStartCards.map(c => c.name));
+    
+    // 対象選択が必要な効果が見つかった場合、最初の1つだけ処理
+    for (let card of enemyTurnStartCards) {
+      const enemyTurnStartAbilities = card.abilities.filter(ability => ability.type === '敵ターン開始時');
       
-      const enemyTurnStartCards = player.field.filter(card => 
-        card.abilities && 
-        card.abilities.some(ability => ability.type === '敵ターン開始時') &&
-        !card.isFatigued
-      );
-      
-      console.log(`${player.name}の敵ターン開始時効果を持つカード:`, enemyTurnStartCards.map(c => c.name));
-      
-      enemyTurnStartCards.forEach(card => {
-        const enemyTurnStartAbilities = card.abilities.filter(ability => ability.type === '敵ターン開始時');
+      for (let ability of enemyTurnStartAbilities) {
+        console.log('敵ターン開始時効果発動:', { 
+          プレイヤー: opponent.name,
+          カード: card.name, 
+          効果: ability.description 
+        });
         
-        enemyTurnStartAbilities.forEach(ability => {
-          console.log('敵ターン開始時効果発動:', { 
-            プレイヤー: player.name,
-            カード: card.name, 
-            効果: ability.description 
+        const result = this.cardEffects.executeAbility(opponent, card, ability);
+        
+        if (result.success) {
+          this.emit('message', {
+            text: `${opponent.name}の${card.name}: ${result.message}`,
+            type: 'info'
           });
           
-          const result = this.cardEffects.executeAbility(player, card, ability);
+          // 処理済みとしてマーク
+          this.processedEnemyTurnStartCards.add(card.fieldId);
+        } else if (result.needsTarget) {
+          // 対象選択が必要な場合、待機状態に設定
+          console.log('敵ターン開始時効果で対象選択が必要:', {
+            playerName: opponent.name,
+            cardName: card.name,
+            abilityDescription: ability.description,
+            validTargets: result.validTargets
+          });
           
-          if (result.success) {
-            this.emit('message', {
-              text: `${player.name}の${card.name}: ${result.message}`,
-              type: 'info'
-            });
-          }
-        });
-      });
-    });
+          this.pendingTargetSelection = {
+            playerId: opponent.id,
+            card: card,
+            ability: ability,
+            validTargets: result.validTargets,
+            type: 'enemyTurnStart'
+          };
+          
+          // プレイヤーに対象選択を要求
+          opponent.socket.emit('request-target-selection', {
+            message: result.message,
+            validTargets: result.validTargets,
+            cardName: card.name,
+            abilityDescription: ability.description
+          });
+          
+          return; // 対象選択待ちのため、他の処理は一時停止
+        } else if (!result.success) {
+          console.log('敵ターン開始時効果実行失敗:', result.message);
+          // 失敗した場合も処理済みとしてマーク
+          this.processedEnemyTurnStartCards.add(card.fieldId);
+        }
+      }
+    }
   }
 
   // 反応効果をトリガー
@@ -1088,6 +1369,196 @@ class GameEngine extends EventEmitter {
     // 反応効果発動後にゲーム状態をブロードキャスト
     if (reactionCards.length > 0) {
       this.broadcastGameState();
+    }
+  }
+
+  // デバッグ機能: ゲーム状態の保存
+  saveGameState() {
+    const gameState = {
+      id: this.id,
+      players: this.players.map(player => ({
+        id: player.id,
+        name: player.name,
+        index: player.index,
+        points: player.points,
+        ipIncrease: player.ipIncrease,
+        field: player.field.map(card => ({
+          ...card,
+          instanceId: card.instanceId,
+          fieldId: card.fieldId,
+          isFatigued: card.isFatigued,
+          fatigueRemainingTurns: card.fatigueRemainingTurns
+        })),
+        isReady: player.isReady,
+        hasActed: player.hasActed
+      })),
+      neutralField: this.neutralField.map(card => ({
+        ...card,
+        fieldId: card.fieldId,
+        isFatigued: card.isFatigued,
+        fatigueRemainingTurns: card.fatigueRemainingTurns
+      })),
+      exileField: this.exileField.map(card => ({
+        ...card,
+        fieldId: card.fieldId
+      })),
+      turn: this.turn,
+      phase: this.phase,
+      currentPlayerIndex: this.currentPlayerIndex,
+      auctionSelections: Array.from(this.auctionSelections.entries()),
+      timestamp: new Date().toISOString(),
+      description: `Turn ${this.turn}, Phase: ${this.phase}, Current Player: ${this.players[this.currentPlayerIndex]?.name}`
+    };
+
+    return gameState;
+  }
+
+  // デバッグ機能: ゲーム状態の復元
+  restoreGameState(savedState) {
+    try {
+      this.id = savedState.id;
+      this.turn = savedState.turn;
+      this.phase = savedState.phase;
+      this.currentPlayerIndex = savedState.currentPlayerIndex;
+      
+      // プレイヤー状態の復元
+      this.players = savedState.players.map((savedPlayer, index) => {
+        const originalPlayer = this.players[index];
+        return {
+          ...originalPlayer, // socketなどの参照を保持
+          id: savedPlayer.id,
+          name: savedPlayer.name,
+          index: savedPlayer.index,
+          points: savedPlayer.points,
+          ipIncrease: savedPlayer.ipIncrease,
+          field: savedPlayer.field.map(card => ({
+            ...card,
+            instanceId: card.instanceId,
+            fieldId: card.fieldId,
+            isFatigued: card.isFatigued,
+            fatigueRemainingTurns: card.fatigueRemainingTurns
+          })),
+          isReady: savedPlayer.isReady,
+          hasActed: savedPlayer.hasActed
+        };
+      });
+
+      // フィールド状態の復元
+      this.neutralField = savedState.neutralField.map(card => ({
+        ...card,
+        fieldId: card.fieldId,
+        isFatigued: card.isFatigued,
+        fatigueRemainingTurns: card.fatigueRemainingTurns
+      }));
+
+      this.exileField = savedState.exileField.map(card => ({
+        ...card,
+        fieldId: card.fieldId
+      }));
+
+      // オークション選択の復元
+      this.auctionSelections = new Map(savedState.auctionSelections);
+
+      console.log('ゲーム状態復元完了:', {
+        gameId: this.id,
+        turn: this.turn,
+        phase: this.phase,
+        currentPlayer: this.players[this.currentPlayerIndex]?.name
+      });
+
+      // 状態復元後にクライアントに通知
+      this.broadcastGameState();
+      this.emit('message', {
+        text: `ゲーム状態を復元しました: ${savedState.description}`,
+        type: 'info'
+      });
+
+      return { success: true, message: 'ゲーム状態が正常に復元されました' };
+    } catch (error) {
+      console.error('ゲーム状態復元エラー:', error);
+      return { success: false, message: `復元エラー: ${error.message}` };
+    }
+  }
+
+  // デバッグ機能: クイック状態設定
+  setQuickDebugState(stateType) {
+    try {
+      switch (stateType) {
+        case 'early-game':
+          this.turn = 2;
+          this.phase = 'playing';
+          this.currentPlayerIndex = 0;
+          this.players[0].points = 15;
+          this.players[1].points = 12;
+          this.players[0].field = this.neutralField.slice(0, 2).map(card => ({
+            ...card,
+            fieldId: `player0_${card.id}_${Date.now()}`,
+            instanceId: `instance_${card.id}_${Date.now()}`
+          }));
+          this.players[1].field = this.neutralField.slice(2, 4).map(card => ({
+            ...card,
+            fieldId: `player1_${card.id}_${Date.now()}`,
+            instanceId: `instance_${card.id}_${Date.now()}`
+          }));
+          this.neutralField = this.neutralField.slice(4);
+          break;
+
+        case 'mid-game':
+          this.turn = 5;
+          this.phase = 'playing';
+          this.currentPlayerIndex = 1;
+          this.players[0].points = 25;
+          this.players[1].points = 30;
+          this.players[0].field = this.neutralField.slice(0, 4).map(card => ({
+            ...card,
+            fieldId: `player0_${card.id}_${Date.now()}`,
+            instanceId: `instance_${card.id}_${Date.now()}`,
+            isFatigued: Math.random() > 0.5
+          }));
+          this.players[1].field = this.neutralField.slice(4, 7).map(card => ({
+            ...card,
+            fieldId: `player1_${card.id}_${Date.now()}`,
+            instanceId: `instance_${card.id}_${Date.now()}`,
+            isFatigued: Math.random() > 0.5
+          }));
+          this.neutralField = this.neutralField.slice(7);
+          break;
+
+        case 'late-game':
+          this.turn = 8;
+          this.phase = 'playing';
+          this.currentPlayerIndex = 0;
+          this.players[0].points = 50;
+          this.players[1].points = 45;
+          this.players[0].field = this.neutralField.slice(0, 5).map(card => ({
+            ...card,
+            fieldId: `player0_${card.id}_${Date.now()}`,
+            instanceId: `instance_${card.id}_${Date.now()}`,
+            isFatigued: Math.random() > 0.3
+          }));
+          this.players[1].field = this.neutralField.slice(5, 9).map(card => ({
+            ...card,
+            fieldId: `player1_${card.id}_${Date.now()}`,
+            instanceId: `instance_${card.id}_${Date.now()}`,
+            isFatigued: Math.random() > 0.3
+          }));
+          this.neutralField = this.neutralField.slice(9);
+          break;
+
+        default:
+          throw new Error('未知の状態タイプ');
+      }
+
+      this.broadcastGameState();
+      this.emit('message', {
+        text: `デバッグ状態「${stateType}」を設定しました`,
+        type: 'info'
+      });
+
+      return { success: true, message: `${stateType} 状態に設定されました` };
+    } catch (error) {
+      console.error('デバッグ状態設定エラー:', error);
+      return { success: false, message: `状態設定エラー: ${error.message}` };
     }
   }
 }
