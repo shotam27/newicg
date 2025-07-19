@@ -135,11 +135,11 @@ class GameEngine extends EventEmitter {
     const player2 = this.players.find(p => p.id === p2Id);
 
     if (p1Data.cardId !== p2Data.cardId) {
-      console.log('異なるカードを選択');
+      console.log('🎯 異なるカードを選択 -> ハイジャック判定実行');
       // 異なるカードを選択
       this.resolveDifferentCards(player1, player2, p1Data, p2Data);
     } else {
-      console.log('同じカードを選択');
+      console.log('🎯 同じカードを選択 -> 通常競売実行');
       // 同じカードを選択
       this.resolveSameCard(player1, player2, p1Data, p2Data);
     }
@@ -155,27 +155,49 @@ class GameEngine extends EventEmitter {
   }
 
   resolveDifferentCards(player1, player2, p1Data, p2Data) {
+    console.log('=== 異なるカードへの入札解決 ===');
+    console.log('Player1 (', player1.name, '):', p1Data.points, 'IP -> カード:', p1Data.cardId);
+    console.log('Player2 (', player2.name, '):', p2Data.points, 'IP -> カード:', p2Data.cardId);
+    
     // ハイジャック判定
     const p1IsDouble = p1Data.points >= p2Data.points * 2;
     const p2IsDouble = p2Data.points >= p1Data.points * 2;
+    
+    console.log('🔍 ハイジャック判定:');
+    console.log('- Player1がハイジャック可能:', p1IsDouble, `(${p1Data.points} >= ${p2Data.points * 2})`);
+    console.log('- Player2がハイジャック可能:', p2IsDouble, `(${p2Data.points} >= ${p1Data.points * 2})`);
 
     if (p1IsDouble && !p2IsDouble) {
-      // Player1がハイジャック
-      this.awardCard(player1, p1Data.cardId, p2Data.points);
-      const card = this.neutralField.find(c => c.fieldId === p1Data.cardId);
+      // Player1がハイジャック - 両方のカードを獲得
+      console.log('🔥 ハイジャック発動！Player1 (', player1.name, ') が両方のカードを獲得');
+      console.log('- 自分のカード:', p1Data.cardId, 'を', p1Data.points, 'IPで獲得');
+      console.log('- 相手のカード:', p2Data.cardId, 'を', p2Data.points, 'IPで横取り');
+      
+      // 自分のカードを自分の入札額で獲得
+      this.awardCard(player1, p1Data.cardId, p1Data.points);
+      // 相手のカードを相手の入札額で横取り
+      this.awardCard(player1, p2Data.cardId, p2Data.points);
+      
+      const card1 = this.neutralField.find(c => c.fieldId === p1Data.cardId);
+      const card2 = this.neutralField.find(c => c.fieldId === p2Data.cardId);
       
       // 各プレイヤーに個別の視点で結果を送信
       console.log('オークション結果送信（ハイジャック - Player1）:', {
         winner: player1.name,
-        cardId: p1Data.cardId,
-        cardInfo: card ? { name: card.name, type: card.type, manaCost: card.manaCost } : null
+        selfCard: card1 ? card1.name : 'unknown',
+        hijackedCard: card2 ? card2.name : 'unknown',
+        totalCost: p1Data.points + p2Data.points
       });
+      
       player1.socket.emit('auction-result', {
         type: 'hijack',
         winner: player1.name,
-        cardId: p1Data.cardId,
-        cardInfo: card ? { name: card.name, type: card.type, manaCost: card.manaCost } : null,
-        pointsPaid: p2Data.points,
+        selfCardId: p1Data.cardId,
+        selfCardInfo: card1 ? { name: card1.name, type: card1.type, manaCost: card1.manaCost } : null,
+        hijackedCardId: p2Data.cardId,
+        hijackedCardInfo: card2 ? { name: card2.name, type: card2.type, manaCost: card2.manaCost } : null,
+        selfPointsPaid: p1Data.points,
+        hijackedPointsPaid: p2Data.points,
         playerBid: p1Data.points,
         opponentBid: p2Data.points
       });
@@ -183,24 +205,39 @@ class GameEngine extends EventEmitter {
       player2.socket.emit('auction-result', {
         type: 'hijack',
         winner: player1.name,
-        cardId: p1Data.cardId,
-        cardInfo: card ? { name: card.name, type: card.type, manaCost: card.manaCost } : null,
-        pointsPaid: p2Data.points,
+        selfCardId: p1Data.cardId,
+        selfCardInfo: card1 ? { name: card1.name, type: card1.type, manaCost: card1.manaCost } : null,
+        hijackedCardId: p2Data.cardId,
+        hijackedCardInfo: card2 ? { name: card2.name, type: card2.type, manaCost: card2.manaCost } : null,
+        selfPointsPaid: p1Data.points,
+        hijackedPointsPaid: p2Data.points,
         playerBid: p2Data.points,
         opponentBid: p1Data.points
       });
     } else if (p2IsDouble && !p1IsDouble) {
-      // Player2がハイジャック
-      this.awardCard(player2, p2Data.cardId, p1Data.points);
-      const card = this.neutralField.find(c => c.fieldId === p2Data.cardId);
+      // Player2がハイジャック - 両方のカードを獲得
+      console.log('🔥 ハイジャック発動！Player2 (', player2.name, ') が両方のカードを獲得');
+      console.log('- 自分のカード:', p2Data.cardId, 'を', p2Data.points, 'IPで獲得');
+      console.log('- 相手のカード:', p1Data.cardId, 'を', p1Data.points, 'IPで横取り');
+      
+      // 自分のカードを自分の入札額で獲得
+      this.awardCard(player2, p2Data.cardId, p2Data.points);
+      // 相手のカードを相手の入札額で横取り
+      this.awardCard(player2, p1Data.cardId, p1Data.points);
+      
+      const card1 = this.neutralField.find(c => c.fieldId === p1Data.cardId);
+      const card2 = this.neutralField.find(c => c.fieldId === p2Data.cardId);
       
       // 各プレイヤーに個別の視点で結果を送信
       player1.socket.emit('auction-result', {
         type: 'hijack',
         winner: player2.name,
-        cardId: p2Data.cardId,
-        cardInfo: card ? { name: card.name, type: card.type, manaCost: card.manaCost } : null,
-        pointsPaid: p1Data.points,
+        selfCardId: p2Data.cardId,
+        selfCardInfo: card2 ? { name: card2.name, type: card2.type, manaCost: card2.manaCost } : null,
+        hijackedCardId: p1Data.cardId,
+        hijackedCardInfo: card1 ? { name: card1.name, type: card1.type, manaCost: card1.manaCost } : null,
+        selfPointsPaid: p2Data.points,
+        hijackedPointsPaid: p1Data.points,
         playerBid: p1Data.points,
         opponentBid: p2Data.points
       });
@@ -208,14 +245,21 @@ class GameEngine extends EventEmitter {
       player2.socket.emit('auction-result', {
         type: 'hijack',
         winner: player2.name,
-        cardId: p2Data.cardId,
-        cardInfo: card ? { name: card.name, type: card.type, manaCost: card.manaCost } : null,
-        pointsPaid: p1Data.points,
+        selfCardId: p2Data.cardId,
+        selfCardInfo: card2 ? { name: card2.name, type: card2.type, manaCost: card2.manaCost } : null,
+        hijackedCardId: p1Data.cardId,
+        hijackedCardInfo: card1 ? { name: card1.name, type: card1.type, manaCost: card1.manaCost } : null,
+        selfPointsPaid: p2Data.points,
+        hijackedPointsPaid: p1Data.points,
         playerBid: p2Data.points,
         opponentBid: p1Data.points
       });
     } else {
       // 通常取得
+      console.log('💰 通常取得（ハイジャック条件未達成）');
+      console.log('- Player1:', player1.name, 'が', p1Data.cardId, 'を', p1Data.points, 'IPで獲得');
+      console.log('- Player2:', player2.name, 'が', p2Data.cardId, 'を', p2Data.points, 'IPで獲得');
+      
       this.awardCard(player1, p1Data.cardId, p1Data.points);
       this.awardCard(player2, p2Data.cardId, p2Data.points);
       const card1 = this.neutralField.find(c => c.fieldId === p1Data.cardId);
@@ -251,11 +295,19 @@ class GameEngine extends EventEmitter {
   }
 
   resolveSameCard(player1, player2, p1Data, p2Data) {
+    console.log('=== 同じカードへの入札解決 ===');
+    console.log('対象カード:', p1Data.cardId);
+    console.log('Player1 (', player1.name, '):', p1Data.points, 'IP');
+    console.log('Player2 (', player2.name, '):', p2Data.points, 'IP');
+    
     if (p1Data.points !== p2Data.points) {
+      console.log('📊 競売開始（ポイント差あり）');
       // ポイントが異なる場合、高い方が獲得
       const winner = p1Data.points > p2Data.points ? player1 : player2;
       const loser = p1Data.points > p2Data.points ? player2 : player1;
       const winnerData = p1Data.points > p2Data.points ? p1Data : p2Data;
+      
+      console.log('🏆 競売結果:', winner.name, 'が', winnerData.points, 'IPで勝利');
       
       this.awardCard(winner, winnerData.cardId, winnerData.points);
       const card = this.neutralField.find(c => c.fieldId === winnerData.cardId);
@@ -306,7 +358,17 @@ class GameEngine extends EventEmitter {
 
   awardCard(player, cardId, pointsCost) {
     const card = this.neutralField.find(c => c.fieldId === cardId);
-    if (!card) return;
+    if (!card) {
+      console.log('⚠️ カードが見つかりません:', cardId);
+      return;
+    }
+    
+    console.log('💳 カード獲得処理:', {
+      player: player.name,
+      cardName: card.name,
+      pointsCost: pointsCost,
+      playerPointsBefore: player.points
+    });
 
     // カードのコピーを作成してプレイヤーフィールドに追加
     const cardCopy = {
@@ -325,7 +387,7 @@ class GameEngine extends EventEmitter {
     card.isFatigued = true;
     card.fatigueRemainingTurns = 2; // 中立フィールドでは2ターン疲労
 
-    console.log(`${player.name}が${card.name}を獲得。中立フィールドのカードが疲労状態になりました。`);
+    console.log(`✅ ${player.name}が${card.name}を獲得完了。IP: ${player.points + pointsCost} -> ${player.points} (-${pointsCost})`);
 
     // カード獲得時効果を発動
     this.cardEffects.triggerOnAcquire(player, cardCopy);
@@ -526,12 +588,18 @@ class GameEngine extends EventEmitter {
     const description = ability.description;
     let targets = [];
     
-    if (description.includes('疲労させる') && (description.includes('一匹') || description.includes('一体'))) {
+    if (description.includes('敵のアリを疲労させる')) {
+      // アリ（ant）かつアクティブなカードが対象
+      targets = opponent.field.filter(card => card.id === 'ant' && !card.isFatigued);
+    } else if (description.includes('疲労させる') && (description.includes('1匹') || description.includes('1体'))) {
       // アクティブな相手カードが対象（条件付きも含む）
       targets = opponent.field.filter(card => !card.isFatigued);
     } else if (description.includes('追放する') && description.includes('疲労')) {
       // 疲労した相手カードが対象
       targets = opponent.field.filter(card => card.isFatigued);
+    } else if (description.includes('追放する') && (description.includes('1匹') || description.includes('1体'))) {
+      // 敵の任意のカードが追放対象（疲労状態に関係なく）
+      targets = [...opponent.field];
     } else if (description.includes('相手') && description.includes('カード')) {
       // 相手の全カードが対象
       targets = [...opponent.field];
@@ -541,7 +609,7 @@ class GameEngine extends EventEmitter {
       description, 
       opponentFieldCount: opponent.field.length,
       validTargetsCount: targets.length,
-      targets: targets.map(t => ({ name: t.name, isFatigued: t.isFatigued }))
+      targets: targets.map(t => ({ name: t.name, id: t.id, isFatigued: t.isFatigued }))
     });
     
     return targets;
@@ -720,7 +788,7 @@ class GameEngine extends EventEmitter {
       console.log('両プレイヤーがパス。ターン終了してオークションフェーズへ');
       this.endTurn();
     } else {
-      // まだパスしていないプレイヤーがいる場合、次のプレイヤーに交代
+      // まだパスしていないプレイヤーががいる場合、次のプレイヤーに交代
       console.log('次のプレイヤーに交代');
       this.nextPlayerTurn();
     }
@@ -902,7 +970,7 @@ class GameEngine extends EventEmitter {
       exileField: this.exileField
     };
 
-    // 対戦相手がいる場合のみ追加
+    // 対戦相手ががいる場合のみ追加
     if (opponent) {
       gameState.players[opponent.id] = {
         name: opponent.name,

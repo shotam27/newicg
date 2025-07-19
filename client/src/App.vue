@@ -25,6 +25,7 @@
       :player-field="playerField"
       :opponent-field="opponentField"
       :neutral-field="neutralField"
+      :exile-field="exileField"
       :selected-card="selectedCard"
       :show-auction-modal="showAuctionModal"
       :is-my-turn="isMyTurn"
@@ -125,6 +126,7 @@ export default {
       playerField: [],
       opponentField: [],
       neutralField: [],
+      exileField: [],
       opponentName: "", // 対戦相手の名前
       opponentIP: 10, // 対戦相手のポイント
       opponentIPIncrease: 10, // 対戦相手の増加IP
@@ -366,6 +368,14 @@ export default {
           instanceId: card.fieldId, // fieldIdをinstanceIdとしても使用
         }));
       }
+
+      if (state.exileField) {
+        this.exileField = state.exileField.map((card) => ({
+          ...card,
+          instanceId:
+            card.fieldId || card.instanceId || `exile_${card.id}_${Date.now()}`, // fieldIdをinstanceIdとしても使用
+        }));
+      }
     },
 
     placeBid(data) {
@@ -527,6 +537,7 @@ export default {
       this.playerField = [];
       this.opponentField = [];
       this.neutralField = [];
+      this.exileField = [];
       this.selectedCard = null;
       this.detailCard = null;
       this.opponentName = "";

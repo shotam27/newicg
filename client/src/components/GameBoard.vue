@@ -40,6 +40,20 @@
       @use-ability="(card, ability) => $emit('use-ability', card, ability)"
     />
 
+    <!-- 追放フィールド -->
+    <CardGrid
+      title="追放フィールド"
+      :cards="exileField"
+      field-type="exile-field"
+      :selected-card="selectedCard"
+      :current-phase="currentPhase"
+      :is-my-turn="isMyTurn"
+      :player-field="playerField"
+      @card-click="$emit('card-click', $event)"
+      @card-detail="$emit('card-detail', $event)"
+      @use-ability="(card, ability) => $emit('use-ability', card, ability)"
+    />
+
     <!-- オークションパネル（モーダル） -->
     <AuctionModal
       :show="showAuctionModal"
@@ -135,6 +149,10 @@ export default {
     neutralField: {
       type: Array,
       required: true,
+    },
+    exileField: {
+      type: Array,
+      default: () => [],
     },
     selectedCard: {
       type: Object,
