@@ -229,13 +229,18 @@ if (!fs.existsSync(debugSavePath)) {
 app.post('/api/debug/save-state', (req, res) => {
   const { gameId, stateName, gameState } = req.body;
   
+  console.log('状態保存API呼び出し:', { gameId, stateName, gameStateKeys: Object.keys(gameState || {}) });
+  
   if (!gameId || !stateName || !gameState) {
+    console.log('必要なパラメータが不足:', { gameId: !!gameId, stateName: !!stateName, gameState: !!gameState });
     return res.status(400).json({ error: '必要なパラメータが不足しています' });
   }
   
   try {
     const fileName = `${stateName}_${gameId}_${Date.now()}.json`;
     const filePath = path.join(debugSavePath, fileName);
+    
+    console.log('保存先パス:', filePath);
     
     const saveData = {
       ...gameState,
@@ -245,6 +250,7 @@ app.post('/api/debug/save-state', (req, res) => {
     };
     
     fs.writeFileSync(filePath, JSON.stringify(saveData, null, 2));
+    console.log('ファイル保存完了:', fileName);
     
     res.json({ 
       success: true, 
@@ -494,6 +500,17 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 対象選択キャンセル
+  socket.on('cancel-target-selection', () => {
+    console.log('cancel-target-selectionイベント受信:', socket.id);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      game.handleCancelTargetSelection(socket.id);
+    } else {
+      console.log('ゲームが見つかりません');
+    }
+  });
+
   // 複数対象選択
   socket.on('multiple-targets-selected', (data) => {
     console.log('multiple-targets-selectedイベント受信:', data);
@@ -501,6 +518,17 @@ io.on('connection', (socket) => {
     if (game) {
       console.log('ゲームでhandleMultipleTargetSelection呼び出し');
       game.handleMultipleTargetSelection(socket.id, data.selectedTargetIds);
+    } else {
+      console.log('ゲームが見つかりません');
+    }
+  });
+
+  // 複数対象選択キャンセル
+  socket.on('cancel-multiple-target-selection', () => {
+    console.log('cancel-multiple-target-selectionイベント受信:', socket.id);
+    const game = findGameByPlayerId(socket.id);
+    if (game) {
+      game.handleCancelMultipleTargetSelection(socket.id);
     } else {
       console.log('ゲームが見つかりません');
     }
@@ -523,12 +551,14 @@ io.on('connection', (socket) => {
     const game = findGameByPlayerId(socket.id);
     if (game) {
       const gameState = game.saveGameState();
+      console.log('ゲーム状態取得成功:', { gameId: gameState.id, turn: gameState.turn, phase: gameState.phase });
       socket.emit('debug-state-saved', {
         success: true,
         gameState: gameState,
         message: 'ゲーム状態を保存しました'
       });
     } else {
+      console.log('ゲームが見つかりません:', socket.id);
       socket.emit('debug-state-saved', {
         success: false,
         message: 'ゲームが見つかりません'

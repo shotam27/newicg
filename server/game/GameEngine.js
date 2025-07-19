@@ -398,6 +398,10 @@ class GameEngine extends EventEmitter {
     console.log('プレイフェーズ開始');
     this.phase = 'playing';
     
+    // 新ラウンド開始：侵略回数をリセット
+    this.cardEffects.startNewRound();
+    console.log('侵略回数カウンターをリセットしました');
+    
     // 各プレイヤーの増加IPを10にリセット
     this.players.forEach(player => {
       player.ipIncrease = 10;
@@ -694,6 +698,65 @@ class GameEngine extends EventEmitter {
     }
     
     console.log('対象選択処理対象外です');
+  }
+
+  // 対象選択キャンセル処理
+  handleCancelTargetSelection(playerId) {
+    console.log('対象選択キャンセル受信:', { playerId });
+    
+    // 通常の対象選択のキャンセル
+    if (this.phase === 'target-selection' && this.pendingAbility) {
+      const { player } = this.pendingAbility;
+      if (player.id === playerId) {
+        console.log('対象選択をキャンセルしました');
+        this.phase = 'playing';
+        this.pendingAbility = null;
+        this.broadcastGameState();
+        
+        player.socket.emit('target-selection-cancelled', {
+          message: '対象選択をキャンセルしました'
+        });
+        return;
+      }
+    }
+    
+    // 敵ターン開始時効果の対象選択のキャンセル
+    if (this.pendingTargetSelection && this.pendingTargetSelection.type === 'enemyTurnStart') {
+      const { playerId: expectedPlayerId } = this.pendingTargetSelection;
+      if (playerId === expectedPlayerId) {
+        console.log('敵ターン開始時効果の対象選択をキャンセルしました');
+        this.pendingTargetSelection = null;
+        
+        // 残りの敵ターン開始時効果があれば継続処理
+        this.triggerEnemyTurnStartEffects();
+        this.broadcastGameState();
+        return;
+      }
+    }
+    
+    console.log('キャンセル対象の対象選択が見つかりません');
+  }
+
+  // 複数対象選択キャンセル処理
+  handleCancelMultipleTargetSelection(playerId) {
+    console.log('複数対象選択キャンセル受信:', { playerId });
+    
+    if (this.phase === 'multiple-target-selection' && this.pendingAbility) {
+      const { player } = this.pendingAbility;
+      if (player.id === playerId) {
+        console.log('複数対象選択をキャンセルしました');
+        this.phase = 'playing';
+        this.pendingAbility = null;
+        this.broadcastGameState();
+        
+        player.socket.emit('multiple-target-selection-cancelled', {
+          message: '複数対象選択をキャンセルしました'
+        });
+        return;
+      }
+    }
+    
+    console.log('キャンセル対象の複数対象選択が見つかりません');
   }
 
   // 通常の対象選択処理
@@ -1294,12 +1357,21 @@ class GameEngine extends EventEmitter {
           };
           
           // プレイヤーに対象選択を要求
+          console.log('🎯 対象選択要求送信:', { 
+            playerId: opponent.id, 
+            socketId: opponent.socket?.id,
+            message: result.message,
+            validTargetsCount: result.validTargets?.length 
+          });
+          
           opponent.socket.emit('request-target-selection', {
             message: result.message,
             validTargets: result.validTargets,
             cardName: card.name,
             abilityDescription: ability.description
           });
+          
+          console.log('✅ request-target-selectionイベント送信完了');
           
           return; // 対象選択待ちのため、他の処理は一時停止
         } else if (!result.success) {
@@ -1383,32 +1455,157 @@ class GameEngine extends EventEmitter {
         points: player.points,
         ipIncrease: player.ipIncrease,
         field: player.field.map(card => ({
+          // カードの完全な情報を保存
           ...card,
           instanceId: card.instanceId,
           fieldId: card.fieldId,
           isFatigued: card.isFatigued,
-          fatigueRemainingTurns: card.fatigueRemainingTurns
+          fatigueRemainingTurns: card.fatigueRemainingTurns || 0,
+          // 基本情報も確実に保存
+          id: card.id,
+          name: card.name,
+          number: card.number,
+          abilities: card.abilities,
+          traits: card.traits || []
         })),
         isReady: player.isReady,
-        hasActed: player.hasActed
+        hasActed: player.hasActed,
+        // プレイヤー詳細情報の追加
+        socketId: player.socket ? player.socket.id : null,
+        connectionTime: player.connectionTime || new Date().toISOString(),
+        playerType: player.playerType || 'human' // human / ai / debug
       })),
       neutralField: this.neutralField.map(card => ({
         ...card,
         fieldId: card.fieldId,
         isFatigued: card.isFatigued,
-        fatigueRemainingTurns: card.fatigueRemainingTurns
+        fatigueRemainingTurns: card.fatigueRemainingTurns || 0,
+        // 中立カードの詳細情報
+        nextRecoveryTurn: card.isFatigued ? (this.turn + (card.fatigueRemainingTurns || 1)) : null,
+        wasAcquiredThisTurn: card.wasAcquiredThisTurn || false,
+        auctionHistory: card.auctionHistory || [],
+        // 基本情報も確実に保存
+        id: card.id,
+        name: card.name,
+        number: card.number,
+        abilities: card.abilities,
+        traits: card.traits || []
       })),
       exileField: this.exileField.map(card => ({
         ...card,
-        fieldId: card.fieldId
+        fieldId: card.fieldId,
+        isFatigued: card.isFatigued,
+        fatigueRemainingTurns: card.fatigueRemainingTurns || 0,
+        // 追放カードの詳細情報
+        exiledTurn: card.exiledTurn || this.turn,
+        exiledBy: card.exiledBy || null,
+        originalOwner: card.originalOwner || null,
+        // 基本情報も確実に保存
+        id: card.id,
+        name: card.name,
+        number: card.number,
+        abilities: card.abilities,
+        traits: card.traits || []
       })),
       turn: this.turn,
       phase: this.phase,
       currentPlayerIndex: this.currentPlayerIndex,
       auctionSelections: Array.from(this.auctionSelections.entries()),
+      
+      // ゲーム詳細情報の追加
+      gameMode: this.gameMode || 'standard',
+      gameStartTime: this.gameStartTime || new Date().toISOString(),
+      lastActivityTime: new Date().toISOString(),
+      
+      // ラウンド・ターン情報
+      roundInfo: {
+        currentRound: Math.ceil(this.turn / 2), // 2ターンで1ラウンド
+        turnsInCurrentRound: this.turn % 2 === 0 ? 2 : 1,
+        totalTurnsPlayed: this.turn
+      },
+      
+      // カード効果状態情報
+      cardEffectStates: {
+        invasionCounts: this.cardEffects ? this.cardEffects.invasionCount || {} : {},
+        processedEnemyTurnStartCards: this.processedEnemyTurnStartCards ? Array.from(this.processedEnemyTurnStartCards) : [],
+        pendingTargetSelection: this.pendingTargetSelection ? {
+          playerId: this.pendingTargetSelection.playerId,
+          cardId: this.pendingTargetSelection.card?.fieldId,
+          abilityDescription: this.pendingTargetSelection.ability?.description,
+          selectionType: this.pendingTargetSelection.type
+        } : null
+      },
+      
+      // フィールド統計情報
+      fieldStatistics: {
+        totalCardsInGame: (this.players[0]?.field?.length || 0) + (this.players[1]?.field?.length || 0) + this.neutralField.length + this.exileField.length,
+        fatigueStatus: {
+          player1Fatigued: this.players[0]?.field?.filter(c => c.isFatigued).length || 0,
+          player2Fatigued: this.players[1]?.field?.filter(c => c.isFatigued).length || 0,
+          neutralFatigued: this.neutralField.filter(c => c.isFatigued).length,
+          exileFatigued: this.exileField.filter(c => c.isFatigued).length
+        }
+      },
+      
       timestamp: new Date().toISOString(),
-      description: `Turn ${this.turn}, Phase: ${this.phase}, Current Player: ${this.players[this.currentPlayerIndex]?.name}`
+      description: `Turn ${this.turn}, Phase: ${this.phase}, Current Player: ${this.players[this.currentPlayerIndex]?.name}`,
+      
+      debugInfo: {
+        saveMethod: 'enhanced_debug_save',
+        totalSaveSize: JSON.stringify({}).length,  // Will be calculated below
+        detailedStateIncluded: true,
+        neutralCardRecoveryTracking: true,
+        enhancedPlayerPersistence: true,
+        fatigueDetailsAvailable: true
+      }
     };
+
+    // サイズ計算（自分自身を含まないように）
+    gameState.debugInfo.totalSaveSize = JSON.stringify(gameState).length;
+
+    // デバッグ用のサマリー情報をログ出力
+    console.log('=== デバッグ保存 詳細情報 ===');
+    console.log(`ゲームID: ${this.id}`);
+    console.log(`現在のターン: ${this.turn} (ラウンド ${Math.ceil(this.turn / 2)})`);
+    console.log(`フェーズ: ${this.phase}`);
+    console.log(`現在のプレイヤー: ${this.players[this.currentPlayerIndex]?.name || 'なし'}`);
+    
+    // 中立カードの回復ターン情報
+    const fatiggedNeutralCards = this.neutralField.filter(c => c.isFatigued);
+    if (fatiggedNeutralCards.length > 0) {
+      console.log('--- 中立カードの疲労状態と回復ターン ---');
+      fatiggedNeutralCards.forEach(card => {
+        const recoveryTurn = this.turn + (card.fatigueRemainingTurns || 1);
+        console.log(`${card.name} (${card.number}): ターン${recoveryTurn}に回復予定 (残り${card.fatigueRemainingTurns || 1}ターン)`);
+      });
+    } else {
+      console.log('--- 中立カードの疲労状態 ---');
+      console.log('疲労している中立カードはありません');
+    }
+    
+    // プレイヤーカードの疲労状態
+    this.players.forEach((player, idx) => {
+      const fatigdPlayerCards = player.field.filter(c => c.isFatigued);
+      if (fatigdPlayerCards.length > 0) {
+        console.log(`--- ${player.name}の疲労カード ---`);
+        fatigdPlayerCards.forEach(card => {
+          const recoveryTurn = this.turn + (card.fatigueRemainingTurns || 1);
+          console.log(`${card.name} (${card.number}): ターン${recoveryTurn}に回復予定 (残り${card.fatigueRemainingTurns || 1}ターン)`);
+        });
+      }
+    });
+    
+    // 侵略カウント情報
+    if (this.cardEffects && this.cardEffects.invasionCount) {
+      console.log('--- 侵略カウント ---');
+      Object.entries(this.cardEffects.invasionCount).forEach(([playerId, count]) => {
+        const player = this.players.find(p => p.id === playerId);
+        console.log(`${player?.name || playerId}: ${count}回`);
+      });
+    }
+    
+    console.log(`保存データサイズ: ${(gameState.debugInfo.totalSaveSize / 1024).toFixed(2)} KB`);
+    console.log('========================');
 
     return gameState;
   }
@@ -1416,31 +1613,85 @@ class GameEngine extends EventEmitter {
   // デバッグ機能: ゲーム状態の復元
   restoreGameState(savedState) {
     try {
+      const isEnhancedSave = savedState.debugInfo?.detailedStateIncluded || false;
+      
+      console.log('🔄 ゲーム状態復元開始:', {
+        savedGameId: savedState.id,
+        savedTurn: savedState.turn,
+        savedPhase: savedState.phase,
+        playersCount: savedState.players.length,
+        neutralFieldCount: savedState.neutralField.length,
+        exileFieldCount: savedState.exileField.length,
+        enhancedSave: isEnhancedSave,
+        saveSize: savedState.debugInfo?.totalSaveSize ? `${(savedState.debugInfo.totalSaveSize / 1024).toFixed(2)} KB` : 'Unknown'
+      });
+
       this.id = savedState.id;
       this.turn = savedState.turn;
-      this.phase = savedState.phase;
+      this.phase = 'auction'; // 復元後は常にオークションフェーズに設定
       this.currentPlayerIndex = savedState.currentPlayerIndex;
       
-      // プレイヤー状態の復元
-      this.players = savedState.players.map((savedPlayer, index) => {
-        const originalPlayer = this.players[index];
-        return {
-          ...originalPlayer, // socketなどの参照を保持
-          id: savedPlayer.id,
-          name: savedPlayer.name,
-          index: savedPlayer.index,
-          points: savedPlayer.points,
-          ipIncrease: savedPlayer.ipIncrease,
-          field: savedPlayer.field.map(card => ({
+      // 拡張ゲーム情報の復元
+      if (savedState.gameMode) {
+        this.gameMode = savedState.gameMode;
+      }
+      if (savedState.gameStartTime) {
+        this.gameStartTime = savedState.gameStartTime;
+      }
+      
+      // カード効果状態の復元
+      if (savedState.cardEffectStates) {
+        if (this.cardEffects && savedState.cardEffectStates.invasionCounts) {
+          this.cardEffects.invasionCount = savedState.cardEffectStates.invasionCounts;
+          console.log('✅ 侵略カウント復元:', this.cardEffects.invasionCount);
+        }
+        if (savedState.cardEffectStates.processedEnemyTurnStartCards) {
+          this.processedEnemyTurnStartCards = new Set(savedState.cardEffectStates.processedEnemyTurnStartCards);
+        }
+      }
+      
+      // プレイヤー状態の復元（プレイヤー名を統一）
+      savedState.players.forEach((savedPlayer, index) => {
+        if (this.players[index]) {
+          const currentPlayer = this.players[index];
+          
+          // socketなどの参照を保持しつつ、状態を復元
+          currentPlayer.id = savedPlayer.id;
+          currentPlayer.name = `player${index + 1}`; // プレイヤー名を統一
+          currentPlayer.index = savedPlayer.index || index;
+          currentPlayer.points = savedPlayer.points;
+          currentPlayer.ipIncrease = savedPlayer.ipIncrease;
+          currentPlayer.isReady = false; // 復元後は再度準備状態にリセット
+          currentPlayer.hasActed = false; // 行動フラグもリセット
+          
+          // 拡張プレイヤー情報の復元
+          if (savedPlayer.playerType) {
+            currentPlayer.playerType = savedPlayer.playerType;
+          }
+          if (savedPlayer.connectionTime) {
+            currentPlayer.connectionTime = savedPlayer.connectionTime;
+          }
+          
+          // フィールドの完全復元
+          currentPlayer.field = savedPlayer.field.map(card => ({
             ...card,
             instanceId: card.instanceId,
             fieldId: card.fieldId,
             isFatigued: card.isFatigued,
-            fatigueRemainingTurns: card.fatigueRemainingTurns
-          })),
-          isReady: savedPlayer.isReady,
-          hasActed: savedPlayer.hasActed
-        };
+            fatigueRemainingTurns: card.fatigueRemainingTurns || 0,
+            // 基本情報も確実に復元
+            id: card.id,
+            name: card.name,
+            number: card.number,
+            abilities: card.abilities,
+            traits: card.traits || []
+          }));
+          
+          console.log(`プレイヤー${index + 1} (${currentPlayer.name}) フィールド復元:`, {
+            cardCount: currentPlayer.field.length,
+            cards: currentPlayer.field.map(c => c.name)
+          });
+        }
       });
 
       // フィールド状態の復元
@@ -1448,28 +1699,124 @@ class GameEngine extends EventEmitter {
         ...card,
         fieldId: card.fieldId,
         isFatigued: card.isFatigued,
-        fatigueRemainingTurns: card.fatigueRemainingTurns
+        fatigueRemainingTurns: card.fatigueRemainingTurns || 0,
+        // 拡張情報の復元
+        nextRecoveryTurn: card.nextRecoveryTurn,
+        wasAcquiredThisTurn: card.wasAcquiredThisTurn || false,
+        auctionHistory: card.auctionHistory || [],
+        // 基本情報も確実に復元
+        id: card.id,
+        name: card.name,
+        number: card.number,
+        abilities: card.abilities,
+        traits: card.traits || []
       }));
 
       this.exileField = savedState.exileField.map(card => ({
         ...card,
-        fieldId: card.fieldId
+        fieldId: card.fieldId,
+        isFatigued: card.isFatigued || false,
+        fatigueRemainingTurns: card.fatigueRemainingTurns || 0,
+        // 拡張情報の復元
+        exiledTurn: card.exiledTurn,
+        exiledBy: card.exiledBy,
+        originalOwner: card.originalOwner,
+        // 基本情報も確実に復元
+        id: card.id,
+        name: card.name,
+        number: card.number,
+        abilities: card.abilities,
+        traits: card.traits || []
       }));
 
       // オークション選択の復元
       this.auctionSelections = new Map(savedState.auctionSelections);
 
-      console.log('ゲーム状態復元完了:', {
+      console.log('🔄 ゲーム状態復元完了:', {
         gameId: this.id,
         turn: this.turn,
         phase: this.phase,
-        currentPlayer: this.players[this.currentPlayerIndex]?.name
+        currentPlayer: this.players[this.currentPlayerIndex]?.name,
+        player1Field: this.players[0]?.field.length || 0,
+        player2Field: this.players[1]?.field.length || 0,
+        neutralField: this.neutralField.length,
+        exileField: this.exileField.length
       });
+
+      // 詳細な復元情報を表示
+      console.log('📋 復元されたフィールド詳細:');
+      this.players.forEach((player, index) => {
+        console.log(`  Player ${index + 1} (${player.name}): ${player.field.length}枚`);
+        player.field.forEach(card => {
+          const fatigueInfo = card.isFatigued ? ` [疲労: 残り${card.fatigueRemainingTurns}ターン]` : '';
+          console.log(`    - ${card.name} (${card.fieldId})${fatigueInfo}`);
+        });
+      });
+      
+      console.log(`  中立フィールド: ${this.neutralField.length}枚`);
+      this.neutralField.forEach(card => {
+        const fatigueInfo = card.isFatigued ? ` [疲労: 残り${card.fatigueRemainingTurns}ターン, 回復予定ターン${card.nextRecoveryTurn || '不明'}]` : '';
+        console.log(`    - ${card.name} (${card.fieldId})${fatigueInfo}`);
+      });
+      
+      console.log(`  追放フィールド: ${this.exileField.length}枚`);
+      this.exileField.forEach(card => {
+        const exileInfo = card.exiledTurn ? ` [ターン${card.exiledTurn}に追放]` : '';
+        const exilerInfo = card.exiledBy ? ` [${card.exiledBy}により]` : '';
+        console.log(`    - ${card.name} (${card.fieldId})${exileInfo}${exilerInfo}`);
+      });
+
+      // 拡張情報のサマリー
+      if (isEnhancedSave) {
+        console.log('=== 拡張復元情報 ===');
+        
+        // 中立カードの回復予定
+        const fatiggedNeutralCards = this.neutralField.filter(c => c.isFatigued);
+        if (fatiggedNeutralCards.length > 0) {
+          console.log('📅 中立カードの回復スケジュール:');
+          fatiggedNeutralCards.forEach(card => {
+            const recoveryTurn = card.nextRecoveryTurn || (this.turn + (card.fatigueRemainingTurns || 1));
+            console.log(`  ${card.name}: ターン${recoveryTurn}に回復予定`);
+          });
+        }
+        
+        // プレイヤーカードの回復予定
+        this.players.forEach((player, idx) => {
+          const fatigdPlayerCards = player.field.filter(c => c.isFatigued);
+          if (fatigdPlayerCards.length > 0) {
+            console.log(`📅 ${player.name}のカード回復スケジュール:`);
+            fatigdPlayerCards.forEach(card => {
+              const recoveryTurn = this.turn + (card.fatigueRemainingTurns || 1);
+              console.log(`  ${card.name}: ターン${recoveryTurn}に回復予定`);
+            });
+          }
+        });
+        
+        // 侵略カウント
+        if (this.cardEffects && this.cardEffects.invasionCount) {
+          console.log('⚔️ 復元された侵略カウント:');
+          Object.entries(this.cardEffects.invasionCount).forEach(([playerId, count]) => {
+            const player = this.players.find(p => p.id === playerId);
+            console.log(`  ${player?.name || playerId}: ${count}回`);
+          });
+        }
+        
+        console.log('===================');
+      }
 
       // 状態復元後にクライアントに通知
       this.broadcastGameState();
+      
+      // 拡張情報を含むメッセージ
+      let restoreMessage = `ゲーム状態を復元しました: ${savedState.description}`;
+      if (isEnhancedSave) {
+        const fatiggedCount = this.neutralField.filter(c => c.isFatigued).length + 
+                              this.players.reduce((sum, p) => sum + p.field.filter(c => c.isFatigued).length, 0);
+        restoreMessage += ` (拡張保存データ、疲労カード${fatiggedCount}枚の回復ターン情報を含む)`;
+      }
+      
       this.emit('message', {
-        text: `ゲーム状態を復元しました: ${savedState.description}`,
+        text: restoreMessage,
         type: 'info'
       });
 

@@ -425,13 +425,39 @@ export default {
 
       // 勝利条件は特別扱い（条件を満たしていれば有効）
       if (ability.type === "勝利") {
-        return (
-          !this.isVictoryConditionMet(card, ability) ||
+        console.log("🏆 勝利条件チェック開始 (フロント):", {
+          cardName: card.name,
+          cardId: card.id,
+          abilityDescription: ability.description,
+          abilityCost: ability.cost,
+          playerIP: this.playerIP,
+          cardCount: this.getCardCount(card.id),
+          isFatigued: card.isFatigued,
+          currentPhase: this.currentPhase,
+          isMyTurn: this.isMyTurn,
+        });
+
+        // 勝利条件も基本的な条件（カード枚数、疲労状態、フェーズ、ターン）をすべて満たしている必要がある
+        const victoryConditionMet = this.isVictoryConditionMet(card, ability);
+        console.log("🎯 勝利条件満足度:", victoryConditionMet);
+
+        const disabled =
           this.getCardCount(card.id) < ability.cost ||
           card.isFatigued ||
           this.currentPhase !== "playing" ||
-          !this.isMyTurn
-        );
+          !this.isMyTurn ||
+          !victoryConditionMet;
+
+        console.log("🏆 勝利条件使用可能性:", !disabled, {
+          cardCount: this.getCardCount(card.id),
+          requiredCost: ability.cost,
+          isFatigued: card.isFatigued,
+          currentPhase: this.currentPhase,
+          isMyTurn: this.isMyTurn,
+          victoryConditionMet,
+        });
+
+        return disabled;
       }
 
       // 一般的な条件チェック
@@ -482,29 +508,49 @@ export default {
     isVictoryConditionMet(card, ability) {
       if (ability.type !== "勝利") return false;
 
-      // 基本条件：コスト数のカードを所持しているか
+      // 全ての勝利条件で共通：カード枚数の基本条件チェック
       const cardCount = this.getCardCount(card.id);
+      console.log("🔍 勝利条件の基本条件チェック (フロント):", {
+        cardId: card.id,
+        cardCount,
+        requiredCost: ability.cost,
+      });
+
       if (cardCount < ability.cost) {
+        console.log("❌ カード枚数不足:", {
+          cardCount,
+          required: ability.cost,
+        });
         return false;
       }
 
-      // 累計IPが40を超えている場合の条件チェック
-      if (ability.description.includes("累計IPが40を超えている場合")) {
+      // 累計IPが40を超えてがいる場合の条件チェック
+      if (
+        ability.description.includes("累計IPが40を超えてがいる場合") ||
+        ability.description.includes("累計IPが40を超えている場合")
+      ) {
+        console.log("🔍 IP超過条件チェック (フロント):", {
+          playerIP: this.playerIP,
+          required: 40,
+        });
         return this.playerIP > 40;
       }
 
-      // ブナシメジの勝利条件：IP40以上
-      if (card.id === "mushroom" && ability.description.includes("IP40以上")) {
-        return this.playerIP >= 40;
-      }
-
       // IP40以上の条件チェック
-      if (ability.description.includes("IP40以上")) {
+      if (
+        ability.description.includes("IP40以上") ||
+        ability.description.includes("IP40")
+      ) {
+        console.log("🔍 IP40以上条件チェック (フロント):", {
+          playerIP: this.playerIP,
+          required: 40,
+        });
         return this.playerIP >= 40;
       }
 
       // 条件なしの勝利条件
       if (ability.description.includes("条件なし")) {
+        console.log("🔍 条件なし勝利条件 (フロント)");
         return true;
       }
 
@@ -521,6 +567,17 @@ export default {
       if (fieldCountMatch) {
         const requiredCount = parseInt(fieldCountMatch[1]);
         return this.playerField.length >= requiredCount;
+      }
+
+      // 侵略回数系勝利条件（サーバー側で実装済み、クライアントは基本条件のみチェック）
+      if (
+        ability.description.includes("侵略した回数が") ||
+        ability.description.includes("1ラウンドで侵略した回数が")
+      ) {
+        // サーバー側で正確な侵略回数が追跡されているため、
+        // クライアント側では基本条件（カード枚数）のみチェックして、
+        // 実際の勝利判定はサーバーに委ねる
+        return true; // カード枚数条件は上でチェック済み
       }
 
       return false;

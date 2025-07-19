@@ -330,6 +330,29 @@ class CardEffects {
       }
     }
 
+    // アリクイの侵略効果：同種を疲労させ、任意の1体を追放する
+    if (ability.description.includes('同種を疲労させ、1体追放する')) {
+      console.log('アリクイの侵略効果：同種疲労+追放');
+      
+      // 同種カードを疲労させる
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return { success: false, message: '疲労させる同種カードがありません' };
+      }
+      
+      // 追放対象候補をチェック
+      const exileCandidates = opponent.field.filter(c => true); // 任意のカード
+      if (exileCandidates.length > 0) {
+        console.log('対象選択が必要な効果です');
+        return { success: false, message: '対象選択が必要です', needsTarget: true };
+      } else {
+        return { success: false, message: '追放可能な対象がありません' };
+      }
+    }
+
     // 増加IP消費系の追放効果（対象選択が必要）
     if (ability.description.includes('増加IP') && ability.description.includes('追放')) {
       const ipCostMatch = ability.description.match(/増加IP(\d+)消費/);
@@ -456,6 +479,39 @@ class CardEffects {
       return this.executeSpecificTargetFatigue(player, card, ability, target, 'ant', 2);
     }
 
+    // アリクイの複合効果：同種疲労+任意のカード追放（侵略効果内で処理）
+    if (ability.description.includes('同種を疲労させ、1体追放する')) {
+      console.log('アリクイの侵略効果（対象指定）:', {
+        targetName: target.name,
+        targetFatigued: target.isFatigued,
+        description: ability.description
+      });
+      
+      // 同種カードを疲労させる
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return { success: false, message: '疲労させる同種カードがありません' };
+      }
+      
+      // 同種カードを疲労させてから追放実行
+      sameTypeCards[0].isFatigued = true;
+      console.log('同種カードを疲労させました:', sameTypeCards[0].name);
+      
+      // 任意の対象カードを追放
+      const exileResult = this.exileTarget(target, '同種疲労後に');
+      if (exileResult.success) {
+        return { 
+          success: true, 
+          message: `${sameTypeCards[0].name}を疲労させ、${target.name}を追放しました` 
+        };
+      } else {
+        return exileResult;
+      }
+    }
+
     // 基本的な疲労効果
     if (ability.description.includes('1匹疲労させる') || 
         ability.description.includes('1体疲労させる') ||
@@ -464,8 +520,8 @@ class CardEffects {
       return this.executeBasicFatigue(player, card, ability, target);
     }
     
-    // 追放効果
-    if (ability.description.includes('追放')) {
+    // 追放効果（アリクイ以外）
+    if (ability.description.includes('追放') && !ability.description.includes('同種を疲労させ、1体追放する')) {
       return this.executeExileWithTarget(player, card, ability, target);
     }
     
@@ -671,6 +727,39 @@ class CardEffects {
       console.log('同種カードを疲労させました:', sameTypeCards[0].name);
       
       // 疲労済みカードを追放
+      const exileResult = this.exileTarget(target, '同種疲労後に');
+      if (exileResult.success) {
+        return { 
+          success: true, 
+          message: `${sameTypeCards[0].name}を疲労させ、${target.name}を追放しました` 
+        };
+      } else {
+        return exileResult;
+      }
+    }
+
+    // アリクイの複合効果：同種疲労+任意のカード追放（対象指定版）
+    if (ability.description.includes('同種を疲労させ、1体追放する')) {
+      console.log('アリクイの対象指定追放効果:', {
+        targetName: target.name,
+        targetFatigued: target.isFatigued,
+        description: ability.description
+      });
+      
+      // 同種カードを疲労させる
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return { success: false, message: '疲労させる同種カードがありません' };
+      }
+      
+      // 同種カードを疲労させてから追放実行
+      sameTypeCards[0].isFatigued = true;
+      console.log('同種カードを疲労させました:', sameTypeCards[0].name);
+      
+      // 任意の対象カードを追放
       const exileResult = this.exileTarget(target, '同種疲労後に');
       if (exileResult.success) {
         return { 
@@ -1543,9 +1632,9 @@ class CardEffects {
     
     const opponent = this.getOpponent(player);
 
-    // 基本条件：コスト数のカードを所持しているか
+    // 全ての勝利条件で共通：カード枚数の基本条件チェック
     const cardCount = player.field.filter(fieldCard => fieldCard.id === card.id).length;
-    console.log('📋 基本条件チェック:', { 
+    console.log('📋 基本条件チェック（カード枚数）:', { 
       cardId: card.id, 
       requiredCount: ability.cost, 
       actualCount: cardCount 
@@ -1561,7 +1650,6 @@ class CardEffects {
       console.log('🔍 IP超過条件チェック:', { playerPoints: player.points, required: 40 });
       if (player.points > 40) {
         console.log('🎉 勝利条件達成！IP超過で勝利');
-        // 勝利条件を満たしているので、ゲーム終了処理を行う
         this.game.endGame(player);
         return { success: true, message: `${player.name}の勝利！累計IPが40を超えました！`, victory: true };
       } else {
@@ -1772,6 +1860,7 @@ class CardEffects {
       // 汎用的な生成パターン
       sameTypeGenerate: /^同種を(\d+)?枚?生成する$|^同種を生成する$/,
       specificGenerate: /(\w+)を(\d+)?枚?獲得する|(\w+)を生成する/,
+      beeAcquire: /ハチを獲得する|ハチを生成する/,
       
       // 汎用的な疲労パターン  
       enemyFatigue: /(\d+)匹疲労させる|(\d+)体疲労させる|敵の(\w+)を疲労させる/,
@@ -1865,6 +1954,10 @@ class CardEffects {
     // 汎用的な条件付き中立生成効果（アリ・アリクイ等）
     const conditionalMatch = description.match(patterns.conditionalGenerate);
     if (conditionalMatch) {
+      console.log('アリクイ効果：条件付き生成パターンマッチ:', { 
+        checkTarget: conditionalMatch[1], 
+        generateTarget: conditionalMatch[2] 
+      });
       const checkTarget = conditionalMatch[1]; // 確認対象
       const generateTarget = conditionalMatch[2]; // 生成対象
       return this.processConditionalNeutralGenerate(checkTarget, generateTarget);
@@ -2553,6 +2646,27 @@ class CardEffects {
         success: true, 
         message: `${sameTypeCards[0].name}を疲労させました（追放対象の疲労済みカードなし）` 
       };
+    }
+
+    // アリクイの複合効果：同種疲労+任意の1体追放
+    if (description.includes('同種を疲労させ、1体追放する')) {
+      console.log('アリクイの侵略効果：同種疲労+追放');
+      
+      const sameTypeCards = player.field.filter(c => 
+        c.id === card.id && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (sameTypeCards.length === 0) {
+        return { processed: true, success: false, message: '疲労させる同種カードがありません' };
+      }
+      
+      // 追放対象候補をチェック
+      const exileCandidates = opponent.field.filter(c => true); // 任意のカード
+      if (exileCandidates.length > 0) {
+        return { processed: true, success: false, message: '対象選択が必要です', needsTarget: true };
+      } else {
+        return { processed: true, success: false, message: '追放可能な対象がありません' };
+      }
     }
 
     // 増加IP消費系の追放効果

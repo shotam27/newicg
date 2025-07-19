@@ -13,10 +13,7 @@
     />
 
     <!-- デバッグパネル -->
-    <DebugPanel
-      :game-state="debugGameState"
-      :socket="socket"
-    />
+    <DebugPanel :game-state="debugGameState" :socket="socket" />
 
     <!-- 相手のフィールド -->
     <CardGrid

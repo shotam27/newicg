@@ -284,6 +284,18 @@ export default {
         this.addMessage(data.message, "warning");
       });
 
+      // 対象選択キャンセル通知
+      this.socket.on("target-selection-cancelled", (data) => {
+        console.log("target-selection-cancelledイベント受信:", data);
+        this.addMessage(data.message, "info");
+      });
+
+      // 複数対象選択キャンセル通知
+      this.socket.on("multiple-target-selection-cancelled", (data) => {
+        console.log("multiple-target-selection-cancelledイベント受信:", data);
+        this.addMessage(data.message, "info");
+      });
+
       // 反応カード選択の通知
       this.socket.on("select-reaction-card", (data) => {
         console.log("select-reaction-cardイベント受信:", data);
@@ -300,6 +312,29 @@ export default {
           `${data.player}の${data.cardName}が反応！${data.result}（${data.trigger}に対して）`,
           "reaction"
         );
+      });
+
+      // 敵ターン開始時効果など、汎用的な対象選択の要求
+      this.socket.on("request-target-selection", (data) => {
+        console.log("🎯 request-target-selectionイベント受信:", data);
+        console.log("対象選択UI表示開始...");
+
+        this.showTargetSelection = true;
+        this.targetSelectionMessage = data.message;
+        this.validTargets = data.validTargets;
+        this.pendingAbility = {
+          cardName: data.cardName,
+          abilityDescription: data.abilityDescription,
+          type: "enemyTurnStart", // 敵ターン開始時効果
+        };
+
+        console.log("対象選択状態設定完了:", {
+          showTargetSelection: this.showTargetSelection,
+          validTargetsCount: this.validTargets?.length,
+          pendingAbility: this.pendingAbility,
+        });
+
+        this.addMessage(data.message, "info");
       });
     },
 
@@ -413,10 +448,10 @@ export default {
           id: playerId,
           name: state.players[playerId].name || `プレイヤー${index + 1}`,
           points: state.players[playerId].ip || 0,
-          field: state.players[playerId].field || []
+          field: state.players[playerId].field || [],
         })),
         neutralField: this.neutralField,
-        exileField: this.exileField
+        exileField: this.exileField,
       };
     },
 
@@ -655,6 +690,9 @@ export default {
       this.targetSelectionMessage = "";
       this.validTargets = [];
       this.pendingAbility = null;
+
+      // サーバーにキャンセルを通知
+      this.socket.emit("cancel-target-selection");
     },
 
     selectMultipleTargets(selectedTargetIds) {
@@ -674,6 +712,9 @@ export default {
       this.showMultipleTargetSelection = false;
       this.multipleTargetSelectionMessage = "";
       this.multipleSelectionTargets = [];
+
+      // サーバーにキャンセルを通知
+      this.socket.emit("cancel-multiple-target-selection");
     },
 
     selectReactionCard(reactionFieldId) {

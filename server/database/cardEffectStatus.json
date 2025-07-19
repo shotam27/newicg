@@ -59,8 +59,8 @@
       "cardId": "cactus",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-19T13:11:35.614Z",
-      "testCount": 16,
+      "lastTested": "2025-07-19T15:07:20.515Z",
+      "testCount": 23,
       "notes": "",
       "reportedBy": [
         "gsgg",
@@ -77,7 +77,12 @@
         "dw",
         "fsfseg",
         "dwawd",
-        "dwda"
+        "dwda",
+        "dwd",
+        "adw",
+        "dwad",
+        "dawdw",
+        "gs"
       ]
     },
     "bee_1": {
@@ -178,8 +183,8 @@
       "cardId": "tulip",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-19T13:12:21.558Z",
-      "testCount": 14,
+      "lastTested": "2025-07-19T17:44:12.932Z",
+      "testCount": 15,
       "notes": "",
       "reportedBy": [
         "fafa",
@@ -191,7 +196,8 @@
         "sfs",
         "fefef",
         "sdsad",
-        "dwda"
+        "dwda",
+        "dwad"
       ]
     },
     "tulip_2": {
@@ -223,8 +229,8 @@
       "cardId": "gazelle",
       "abilityIndex": 0,
       "status": "working",
-      "lastTested": "2025-07-19T07:30:14.913Z",
-      "testCount": 16,
+      "lastTested": "2025-07-19T18:06:02.873Z",
+      "testCount": 19,
       "notes": "",
       "reportedBy": [
         "dada",
@@ -236,7 +242,10 @@
         "sfs",
         "fff",
         "fef",
-        "fefe"
+        "fefe",
+        "sef",
+        "player2",
+        "seg"
       ]
     },
     "tulip_0": {
@@ -267,9 +276,9 @@
     "cactus_2": {
       "cardId": "cactus",
       "abilityIndex": 2,
-      "status": "working",
-      "lastTested": "2025-07-19T13:12:37.203Z",
-      "testCount": 36,
+      "status": "broken",
+      "lastTested": "2025-07-19T14:49:48.258Z",
+      "testCount": 51,
       "notes": "",
       "reportedBy": [
         "fgf",
@@ -281,7 +290,10 @@
         "sdsad",
         "dw",
         "dwawd",
-        "dwda"
+        "dwda",
+        "dwad",
+        "adw",
+        "dawdw"
       ]
     },
     "gazelle_1": {
@@ -318,9 +330,9 @@
     "ant_0": {
       "cardId": "ant",
       "abilityIndex": 0,
-      "status": "working",
-      "lastTested": "2025-07-19T09:40:55.585Z",
-      "testCount": 10,
+      "status": "broken",
+      "lastTested": "2025-07-19T17:52:01.974Z",
+      "testCount": 12,
       "notes": "",
       "reportedBy": [
         "ggg",
@@ -330,22 +342,27 @@
         "dwdw",
         "fefef",
         "dadw",
-        "fff"
+        "fff",
+        "fes",
+        "sef"
       ]
     },
     "anteater_0": {
       "cardId": "anteater",
       "abilityIndex": 0,
-      "status": "working",
-      "lastTested": "2025-07-19T09:43:06.120Z",
-      "testCount": 6,
+      "status": "broken",
+      "lastTested": "2025-07-19T18:06:02.871Z",
+      "testCount": 12,
       "notes": "",
       "reportedBy": [
         "ggg",
         "feef",
         "fff",
         "efefe",
-        "grgr"
+        "grgr",
+        "dwad",
+        "daw",
+        "af"
       ]
     },
     "ant_2": {
@@ -433,8 +450,52 @@
       "reportedBy": [
         "gdeg"
       ]
+    },
+    "cactus_3": {
+      "cardId": "cactus",
+      "abilityIndex": 3,
+      "status": "working",
+      "lastTested": "2025-07-19T15:07:28.304Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "gs"
+      ]
+    },
+    "anteater_2": {
+      "cardId": "anteater",
+      "abilityIndex": 2,
+      "status": "working",
+      "lastTested": "2025-07-19T18:07:17.220Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "anteater_1": {
+      "cardId": "anteater",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-19T18:07:21.306Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "ant_1": {
+      "cardId": "ant",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-19T18:08:38.993Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
     }
   },
-  "lastUpdated": "2025-07-19T13:12:37.203Z",
+  "lastUpdated": "2025-07-19T18:08:38.993Z",
   "version": "1.0"
 }
