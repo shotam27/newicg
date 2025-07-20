@@ -9,7 +9,7 @@
     "client": "cd client && npm run dev",
     "build": "cd client && npm install && npm run build && cd ../server && npm install && cd ../admin && npm install",
     "start": "cd server && npm start",
-    "postinstall": "",
+    "postinstall": "cd client && npm install && npm run build",
     "install-all": "npm install && cd client && npm install"
   },
   "engines": {
