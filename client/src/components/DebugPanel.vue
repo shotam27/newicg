@@ -3,7 +3,7 @@
     <div class="debug-header">
       <h3>🔧 Debug Panel</h3>
     </div>
-    
+
     <div class="debug-content">
       <!-- ゲーム状態情報 -->
       <div class="debug-section">
@@ -11,15 +11,24 @@
         <div class="debug-info">
           <p><strong>Turn:</strong> {{ debugGameState.turn }}</p>
           <p><strong>Phase:</strong> {{ debugGameState.phase }}</p>
-          <p><strong>Current Player:</strong> {{ debugGameState.currentPlayerIndex }}</p>
+          <p>
+            <strong>Current Player:</strong>
+            {{ debugGameState.currentPlayerIndex }}
+          </p>
         </div>
       </div>
 
       <!-- プレイヤー情報 -->
       <div class="debug-section">
         <h4>👥 Players</h4>
-        <div v-for="(player, index) in debugGameState.players" :key="player.id" class="player-info">
-          <p><strong>{{ player.name }}:</strong> {{ player.points }}IP</p>
+        <div
+          v-for="(player, index) in debugGameState.players"
+          :key="player.id"
+          class="player-info"
+        >
+          <p>
+            <strong>{{ player.name }}:</strong> {{ player.points }}IP
+          </p>
           <p>Field: {{ player.field.length }} cards</p>
         </div>
       </div>
@@ -28,8 +37,14 @@
       <div class="debug-section">
         <h4>🃏 Fields</h4>
         <div class="debug-info">
-          <p><strong>Neutral:</strong> {{ debugGameState.neutralField?.length || 0 }} cards</p>
-          <p><strong>Exile:</strong> {{ debugGameState.exileField?.length || 0 }} cards</p>
+          <p>
+            <strong>Neutral:</strong>
+            {{ debugGameState.neutralField?.length || 0 }} cards
+          </p>
+          <p>
+            <strong>Exile:</strong>
+            {{ debugGameState.exileField?.length || 0 }} cards
+          </p>
         </div>
       </div>
 
@@ -39,7 +54,10 @@
         <div class="debug-info">
           <p><strong>Invasion Counts:</strong></p>
           <ul v-if="cardEffectStates.invasionCounts">
-            <li v-for="(count, cardId) in cardEffectStates.invasionCounts" :key="cardId">
+            <li
+              v-for="(count, cardId) in cardEffectStates.invasionCounts"
+              :key="cardId"
+            >
               {{ cardId }}: {{ count }}
             </li>
           </ul>
@@ -53,24 +71,49 @@
         <div class="victory-summary">
           <p><strong>📊 Summary:</strong></p>
           <p>• Total Available: {{ availableVictoryEffects.length }}</p>
-          <p>• Own Effects: <span class="own-count">{{ getPlayerVictoryEffects().length }}</span></p>
-          <p>• Opponent Effects: <span class="opponent-count">{{ getOpponentVictoryEffects().length }}</span></p>
+          <p>
+            • Own Effects:
+            <span class="own-count">{{
+              getPlayerVictoryEffects().length
+            }}</span>
+          </p>
+          <p>
+            • Opponent Effects:
+            <span class="opponent-count">{{
+              getOpponentVictoryEffects().length
+            }}</span>
+          </p>
         </div>
-        
-        <div v-if="availableVictoryEffects.length > 0" class="victory-effects-list">
+
+        <div
+          v-if="availableVictoryEffects.length > 0"
+          class="victory-effects-list"
+        >
           <h5>📋 Available Victory Effects:</h5>
-          <div v-for="(effect, index) in availableVictoryEffects" :key="index" class="victory-effect" :class="{ 'own-effect': effect.playerId === playerId }">
+          <div
+            v-for="(effect, index) in availableVictoryEffects"
+            :key="index"
+            class="victory-effect"
+            :class="{ 'own-effect': effect.playerId === playerId }"
+          >
             <div class="effect-header">
               <strong>{{ effect.cardName }}</strong>
-              <span class="player-badge" :class="effect.playerId === playerId ? 'own-badge' : 'opponent-badge'">
-                {{ effect.playerId === playerId ? 'YOU' : 'OPP' }}
+              <span
+                class="player-badge"
+                :class="
+                  effect.playerId === playerId ? 'own-badge' : 'opponent-badge'
+                "
+              >
+                {{ effect.playerId === playerId ? "YOU" : "OPP" }}
               </span>
             </div>
             <div class="effect-details">
               <p><strong>Condition:</strong> {{ effect.condition }}</p>
               <div class="technical-info">
-                <small>Instance ID: {{ effect.cardInstanceId }}</small><br>
-                <small>Ability Index: {{ effect.abilityIndex }}</small><br>
+                <small>Instance ID: {{ effect.cardInstanceId }}</small
+                ><br />
+                <small>Ability Index: {{ effect.abilityIndex }}</small
+                ><br />
                 <small>Player ID: {{ effect.playerId }}</small>
               </div>
             </div>
@@ -78,7 +121,9 @@
         </div>
         <div v-else class="no-victory-effects">
           <p>❌ No victory effects currently available</p>
-          <small>Victory effects will appear here when conditions are met</small>
+          <small
+            >Victory effects will appear here when conditions are met</small
+          >
         </div>
       </div>
     </div>
@@ -87,34 +132,38 @@
 
 <script>
 export default {
-  name: 'DebugPanel',
+  name: "DebugPanel",
   props: {
     debugGameState: {
       type: Object,
-      default: () => ({})
+      default: () => ({}),
     },
     cardEffectStates: {
       type: Object,
-      default: () => ({})
+      default: () => ({}),
     },
     availableVictoryEffects: {
       type: Array,
-      default: () => []
+      default: () => [],
     },
     playerId: {
       type: String,
-      default: ''
-    }
+      default: "",
+    },
   },
   methods: {
     getPlayerVictoryEffects() {
-      return this.availableVictoryEffects.filter(effect => effect.playerId === this.playerId);
+      return this.availableVictoryEffects.filter(
+        (effect) => effect.playerId === this.playerId
+      );
     },
     getOpponentVictoryEffects() {
-      return this.availableVictoryEffects.filter(effect => effect.playerId !== this.playerId);
-    }
-  }
-}
+      return this.availableVictoryEffects.filter(
+        (effect) => effect.playerId !== this.playerId
+      );
+    },
+  },
+};
 </script>
 
 <style scoped>
@@ -198,7 +247,11 @@ export default {
 /* 勝利効果専用スタイル */
 .victory-effects-section {
   border: 3px solid #ffd700;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 215, 0, 0.05));
+  background: linear-gradient(
+    135deg,
+    rgba(255, 215, 0, 0.15),
+    rgba(255, 215, 0, 0.05)
+  );
   border-radius: 8px;
 }
 

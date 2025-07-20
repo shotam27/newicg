@@ -100,8 +100,8 @@
     </div>
 
     <!-- デバッグボタン -->
-    <button 
-      v-if="gameState === 'playing'" 
+    <button
+      v-if="gameState === 'playing'"
       class="debug-toggle-button"
       @click="toggleDebugPanel"
     >
@@ -109,7 +109,11 @@
     </button>
 
     <!-- デバッグパネルモーダル -->
-    <div v-if="showDebugPanel" class="debug-modal-overlay" @click="closeDebugPanel">
+    <div
+      v-if="showDebugPanel"
+      class="debug-modal-overlay"
+      @click="closeDebugPanel"
+    >
       <div class="debug-modal-content" @click.stop>
         <button class="debug-close-button" @click="closeDebugPanel">×</button>
         <DebugPanel
@@ -256,11 +260,12 @@ export default {
   methods: {
     initializeSocket() {
       // 本番環境では同じホストを使用、開発環境ではlocalhost:3001
-      const socketUrl = process.env.NODE_ENV === 'production' 
-        ? window.location.origin 
-        : "http://localhost:3001";
-      
-      console.log('Socket.IO connecting to:', socketUrl);
+      const socketUrl =
+        process.env.NODE_ENV === "production"
+          ? window.location.origin
+          : "http://localhost:3001";
+
+      console.log("Socket.IO connecting to:", socketUrl);
       this.socket = io(socketUrl);
 
       this.socket.on("connect", () => {
@@ -1159,8 +1164,6 @@ export default {
     transform: translateX(-50%) translateY(-30px) scale(0.9);
   }
 }
-
-
 
 /* デバッグボタン */
 .debug-toggle-button {
