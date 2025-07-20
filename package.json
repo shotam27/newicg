@@ -7,9 +7,9 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server/index.js",
     "client": "cd client && npm run dev",
-    "build": "cd client && npm install && npm run build",
+    "build": "cd client && npm install && npm run build && cd ../server && npm install && cd ../admin && npm install",
     "start": "cd server && npm start",
-    "postinstall": "cd client && npm install && npm run build",
+    "postinstall": "",
     "install-all": "npm install && cd client && npm install"
   },
   "engines": {
