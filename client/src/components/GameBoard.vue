@@ -12,9 +12,6 @@
       :opponent-i-p-increase="opponentIPIncrease"
     />
 
-    <!-- デバッグパネル -->
-    <DebugPanel :game-state="debugGameState" :socket="socket" />
-
     <!-- 相手のフィールド -->
     <CardGrid
       :title="`${opponentName || '相手'}のフィールド`"
@@ -78,6 +75,9 @@
       :is-my-turn="isMyTurn"
       :player-field="playerField"
       :player-i-p="playerIP"
+      :card-effect-states="cardEffectStates"
+      :available-victory-effects="availableVictoryEffects"
+      :player-id="playerId"
       @card-click="$emit('card-click', $event)"
       @card-detail="$emit('card-detail', $event)"
       @use-ability="(card, ability) => $emit('use-ability', card, ability)"
@@ -99,7 +99,6 @@ import TurnInfo from "./TurnInfo.vue";
 import CardGrid from "./CardGrid.vue";
 import AuctionModal from "./AuctionModal.vue";
 import ActionButtons from "./ActionButtons.vue";
-import DebugPanel from "./DebugPanel.vue";
 
 export default {
   name: "GameBoard",
@@ -108,7 +107,6 @@ export default {
     CardGrid,
     AuctionModal,
     ActionButtons,
-    DebugPanel,
   },
   props: {
     currentTurn: {
@@ -178,6 +176,20 @@ export default {
     debugGameState: {
       type: Object,
       default: () => ({}),
+    },
+    cardEffectStates: {
+      type: Object,
+      default: () => ({
+        invasionCounts: {},
+      }),
+    },
+    availableVictoryEffects: {
+      type: Array,
+      default: () => [],
+    },
+    playerId: {
+      type: String,
+      default: "",
     },
   },
   methods: {

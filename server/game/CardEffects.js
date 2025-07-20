@@ -47,10 +47,26 @@ class CardEffects {
   incrementInvasion(playerId) {
     if (!this.invasionCount[playerId]) this.invasionCount[playerId] = 0;
     this.invasionCount[playerId]++;
+    console.log(`🗡️ 侵略回数更新: プレイヤー${playerId}の侵略回数が${this.invasionCount[playerId]}回になりました`);
+    
+    // 現在の全プレイヤーの侵略回数を表示
+    console.log('📊 全プレイヤー侵略回数:', this.invasionCount);
+    
+    // クライアントに即座に侵略回数更新を通知
+    this.game.players.forEach(player => {
+      player.socket.emit('cardEffectStates', this.getEffectStates());
+    });
   }
 
   getInvasionCount(playerId) {
     return this.invasionCount[playerId] || 0;
+  }
+
+  // カード効果状態を取得（クライアントに送信用）
+  getEffectStates() {
+    return {
+      invasionCounts: { ...this.invasionCount }
+    };
   }
 
   // カード獲得時効果（疲労状態に関係なく発動）
@@ -130,9 +146,29 @@ class CardEffects {
       let result;
       switch (ability.type) {
         case '侵略':
-          result = this.executeInvasion(player, card, ability);
-          // 侵略回数追跡
-          this.incrementInvasion(player.id);
+          // Skunk: フントークンを破棄し、1体追放する
+          if (card.id === 'skunk' && ability.description.includes('フントークンを破棄し、1体追放する')) {
+            // フィールドからフントークンを探す
+            const funTokenCard = player.field.find(c => c.id === 'fun_token' && !c.isFatigued);
+            if (!funTokenCard) {
+              result = { success: false, message: 'フントークンがありません' };
+            } else {
+              // フントークンカードを削除
+              const tokenIndex = player.field.indexOf(funTokenCard);
+              player.field.splice(tokenIndex, 1);
+              // 数値も減算
+              if (player.funTokens) player.funTokens = Math.max(0, player.funTokens - 1);
+              // Needs target selection, so handled in executeInvasionWithTarget
+              result = { success: false, message: '追放する対象を選択してください', needsTarget: true };
+            }
+          } else {
+            result = this.executeInvasion(player, card, ability);
+            // 侵略効果が成功した場合のみ回数追跡（対象選択必要な場合は後でカウント）
+            if (result.success && !result.needsTarget) {
+              this.incrementInvasion(player.id);
+              console.log(`侵略効果成功: ${player.name}の侵略回数が${this.getInvasionCount(player.id)}回になりました`);
+            }
+          }
           break;
         case '強化':
           result = this.executeEnhancement(player, card, ability);
@@ -213,7 +249,33 @@ class CardEffects {
       let result;
       switch (ability.type) {
         case '侵略':
-          result = this.executeInvasionWithTarget(player, card, ability, target);
+          // Skunk: フントークンを破棄し、1体追放する
+          if (card.id === 'skunk' && ability.description.includes('フントークンを破棄し、1体追放する')) {
+            // フィールドからフントークンを探す
+            const funTokenCard = player.field.find(c => c.id === 'fun_token' && !c.isFatigued);
+            if (!funTokenCard) {
+              result = { success: false, message: 'フントークンがありません' };
+            } else {
+              // フントークンカードを削除
+              const tokenIndex = player.field.indexOf(funTokenCard);
+              player.field.splice(tokenIndex, 1);
+              // 数値も減算
+              if (player.funTokens) player.funTokens = Math.max(0, player.funTokens - 1);
+              // Exile the selected target
+              const exileResult = this.exileTarget(target, 'フントークンを破棄して');
+              result = exileResult;
+            }
+            if (result.success) {
+              this.incrementInvasion(player.id);
+            }
+          } else {
+            result = this.executeInvasionWithTarget(player, card, ability, target);
+            // 侵略効果が成功した場合のみ回数追跡
+            if (result.success) {
+              this.incrementInvasion(player.id);
+              console.log(`対象選択侵略効果成功: ${player.name}の侵略回数が${this.getInvasionCount(player.id)}回になりました`);
+            }
+          }
           break;
         case '強化':
           result = this.executeEnhancementWithTarget(player, card, ability, target);
@@ -427,6 +489,85 @@ class CardEffects {
       return this.handlePoop(player, opponent, ability);
     }
 
+    // ハチの特殊侵略効果：自分のハチを2匹疲労させ、1匹追放する
+    if (ability.description.includes('自分のハチを2匹疲労させ、1匹追放する')) {
+      console.log('ハチの特殊侵略効果:', { description: ability.description });
+      
+      // 自分のフィールドの疲労していないハチを探す
+      const activeBees = player.field.filter(c => 
+        c.id === 'bee' && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (activeBees.length < 2) {
+        return { success: false, message: '疲労させるハチが2匹いません（現在' + activeBees.length + '匹）' };
+      }
+      
+      // 2匹のハチを疲労させる
+      activeBees[0].isFatigued = true;
+      activeBees[1].isFatigued = true;
+      console.log('ハチ2匹を疲労させました:', [activeBees[0].name, activeBees[1].name]);
+      
+      // 相手のカードから追放対象を選択
+      const exileCandidates = opponent.field.filter(c => !c.isFatigued);
+      if (exileCandidates.length > 0) {
+        console.log('対象選択が必要な効果です');
+        return { success: false, message: '追放する対象を選択してください', needsTarget: true };
+      } else {
+        return { 
+          success: true, 
+          message: 'ハチ2匹を疲労させました（追放可能な対象がありません）' 
+        };
+      }
+    }
+
+    // とうちゅうかそうの侵略効果：自分のIPを5消費し、相手のカードを疲労させる
+    if (ability.description.includes('自分のIPを5消費し、相手のカードを疲労させる')) {
+      console.log('とうちゅうかそうの侵略効果:', { description: ability.description });
+      
+      // IP5消費チェック
+      if (player.points < 5) {
+        return { success: false, message: 'IPが不足しています（5IP必要、現在' + player.points + 'IP）' };
+      }
+      
+      // 相手のカードから疲労対象を選択
+      const fatigueCandidates = opponent.field.filter(c => !c.isFatigued);
+      if (fatigueCandidates.length > 0) {
+        console.log('対象選択が必要な効果です');
+        return { success: false, message: '疲労させる対象を選択してください', needsTarget: true };
+      } else {
+        return { success: false, message: '疲労させる対象がありません' };
+      }
+    }
+
+    // とうちゅうかそうの特殊侵略効果：相手の侵略持ちカードを発動させる
+    if (ability.description.includes('相手の侵略持ちカードを発動させる')) {
+      console.log('とうちゅうかそうの特殊効果:', { description: ability.description });
+      
+      // 相手の侵略持ちカードを取得
+      const opponentInvasionCards = opponent.field.filter(c => 
+        !c.isFatigued && c.abilities && c.abilities.some(a => a.type === '侵略')
+      );
+      
+      if (opponentInvasionCards.length === 0) {
+        return { success: false, message: '相手に発動可能な侵略持ちカードがありません' };
+      }
+      
+      // 最初の侵略持ちカードを強制発動（簡易実装）
+      const targetCard = opponentInvasionCards[0];
+      const invasionAbility = targetCard.abilities.find(a => a.type === '侵略');
+      
+      console.log('相手カード強制発動:', { 
+        cardName: targetCard.name, 
+        abilityDescription: invasionAbility.description 
+      });
+      
+      // 相手のカードの効果を現在のプレイヤーに有利になるよう調整
+      // TODO: より複雑な相手効果発動システムの実装
+      this.gamelog.log(`${this.getCurrentPlayerName()} forces ${targetCard.name} to activate invasion effect`);
+      
+      return { success: true, message: `${targetCard.name}の侵略効果を強制発動させました` };
+    }
+
     console.log('侵略効果処理完了');
     return { success: true, message: `${ability.description}を実行しました` };
   }
@@ -512,12 +653,70 @@ class CardEffects {
       }
     }
 
-    // 基本的な疲労効果
-    if (ability.description.includes('1匹疲労させる') || 
-        ability.description.includes('1体疲労させる') ||
-        ability.description.includes('1匹疲労させる') || 
-        ability.description.includes('1体疲労させる')) {
-      return this.executeBasicFatigue(player, card, ability, target);
+    // ハチの特殊侵略効果（対象指定版）：自分のハチを2匹疲労させ、対象を追放する
+    if (ability.description.includes('自分のハチを2匹疲労させ、1匹追放する')) {
+      console.log('ハチの特殊侵略効果（対象指定）:', {
+        targetName: target.name,
+        targetFatigued: target.isFatigued,
+        description: ability.description
+      });
+      
+      // 自分のフィールドの疲労していないハチを探す
+      const activeBees = player.field.filter(c => 
+        c.id === 'bee' && !c.isFatigued && c.fieldId !== card.fieldId
+      );
+      
+      if (activeBees.length < 2) {
+        return { success: false, message: '疲労させるハチが2匹いません（現在' + activeBees.length + '匹）' };
+      }
+      
+      // 2匹のハチを疲労させる
+      activeBees[0].isFatigued = true;
+      activeBees[1].isFatigued = true;
+      console.log('ハチ2匹を疲労させました:', [activeBees[0].name, activeBees[1].name]);
+      
+      // 対象を追放
+      const exileResult = this.exileTarget(target, 'ハチ2匹疲労後に');
+      if (exileResult.success) {
+        return { 
+          success: true, 
+          message: `ハチ2匹を疲労させ、${target.name}を追放しました` 
+        };
+      } else {
+        return exileResult;
+      }
+    }
+
+    // とうちゅうかそうの侵略効果（対象指定版）：自分のIPを5消費し、相手のカードを疲労させる
+    if (ability.description.includes('自分のIPを5消費し、相手のカードを疲労させる')) {
+      console.log('とうちゅうかそうの侵略効果（対象指定）:', {
+        targetName: target.name,
+        targetFatigued: target.isFatigued,
+        description: ability.description
+      });
+      
+      // IP5消費チェック
+      if (player.points < 5) {
+        return { success: false, message: 'IPが不足しています（5IP必要、現在' + player.points + 'IP）' };
+      }
+      
+      // 対象が既に疲労しているかチェック
+      if (target.isFatigued) {
+        return { success: false, message: `${target.name}は既に疲労しています` };
+      }
+      
+      // IP消費して対象を疲労させる
+      player.points -= 5;
+      target.isFatigued = true;
+      console.log('IP5消費して相手カードを疲労させました:', { 
+        targetName: target.name,
+        remainingPoints: player.points
+      });
+      
+      return { 
+        success: true, 
+        message: `5IP消費して${target.name}を疲労させました` 
+      };
     }
     
     // 追放効果（アリクイ以外）
@@ -790,35 +989,31 @@ class CardEffects {
 
   // 強化効果
   executeEnhancement(player, card, ability) {
-    // 共通効果を優先チェック
-    const commonResult = this.processCommonEffects(player, card, ability);
-    if (commonResult) return commonResult;
 
-    // 手動反応発動システム
-    if (ability.description.includes('自分の反応持ちカードの効果を発動できる')) {
-      const reactionCards = player.field.filter(c => 
-        !c.isFatigued && c.abilities && c.abilities.some(a => a.type === '反応')
-      );
-      
-      if (reactionCards.length === 0) {
-        return { success: false, message: '発動可能な反応持ちカードがありません' };
+    // Pitcher Plant: mutual recovery effect needs target selection
+    if (card.id === 'pitcherplant' && ability.description.includes('敵のカードを1枚回復することで、味方のカードを1枚回復する')) {
+      // Check for fatigued enemy cards
+      const opponent = this.getOpponent(player);
+      const fatiguedEnemies = opponent.field.filter(c => c.isFatigued);
+      if (fatiguedEnemies.length > 0) {
+        // Needs target selection with target info
+        return { 
+          success: false, 
+          message: '回復する敵カードを選択してください', 
+          needsTarget: true,
+          validTargets: fatiguedEnemies.map(target => ({
+            fieldId: target.fieldId || target.instanceId,
+            name: target.name,
+            owner: opponent.name,
+            isFatigued: target.isFatigued
+          }))
+        };
+      } else {
+        return { success: false, message: '疲労している敵カードがいません' };
       }
-
-      // プレイヤーに反応カード選択を要求
-      const validTargets = reactionCards.map(reactionCard => ({
-        fieldId: reactionCard.fieldId || reactionCard.instanceId,
-        name: reactionCard.name,
-        abilities: reactionCard.abilities.filter(a => a.type === '反応')
-      }));
-
-      player.socket.emit('select-reaction-card', {
-        message: '発動反応持ちカードを選択してください',
-        validTargets: validTargets
-      });
-
-      // 反応選択の処理は別途handleReactionSelectionで行う
-      return { success: true, message: '反応カード選択待ち' };
     }
+
+    // ...existing code...
 
     // 同種疲労 + 同種獲得の複合効果（一般的な疲労処理より前に）
     if (ability.description.includes('同種を疲労させ、同種を獲得する') || 
@@ -1009,15 +1204,36 @@ class CardEffects {
 
     // フントークン生成
     if (ability.description.includes('フントークンを生成する')) {
-      // フントークンシステムの実装
+      // フントークンをカードオブジェクトとして生成
+      const fieldId = `funtoken_${Date.now()}_${Math.random()}`;
+      const funToken = {
+        id: 'fun_token',
+        name: 'フントークン',
+        fieldId: fieldId,
+        instanceId: fieldId,
+        abilities: [
+          {
+            type: 'ターン終了時',
+            cost: 1,
+            description: '自分のIP-1'
+          }
+        ],
+        isFatigued: false
+      };
+      
+      player.field.push(funToken);
+      
+      // 数値管理も併用（効果処理用）
       if (!player.funTokens) {
         player.funTokens = 0;
       }
-      
       player.funTokens += 1;
+      
       console.log('フントークン生成:', { 
         playerName: player.name, 
-        funTokens: player.funTokens 
+        funTokens: player.funTokens,
+        cardName: funToken.name,
+        fieldId: funToken.fieldId
       });
       
       return { success: true, message: `フントークンを1個生成しました（現在${player.funTokens}個）` };
@@ -1068,7 +1284,24 @@ class CardEffects {
               }
             }
           } else if (targetCardName === 'フントークン') {
-            // フントークン生成
+            // フントークン生成（カードオブジェクトとして）
+            const fieldId = `funtoken_${Date.now()}_${Math.random()}`;
+            const funToken = {
+              id: 'fun_token',
+              name: 'フントークン',
+              fieldId: fieldId,
+              instanceId: fieldId,
+              abilities: [
+                {
+                  type: 'ターン終了時',
+                  cost: 1,
+                  description: '自分のIP-1'
+                }
+              ],
+              isFatigued: false
+            };
+            player.field.push(funToken);
+            // 数値管理も併用
             if (!player.funTokens) player.funTokens = 0;
             player.funTokens += 1;
             console.log('フントークン生成:', { funTokens: player.funTokens });
@@ -1387,7 +1620,24 @@ class CardEffects {
       targetName: target.name 
     });
     
-    // とりあえず基本実装
+    // Pitcher Plant: mutual recovery
+    if (card.id === 'pitcherplant' && ability.description.includes('敵のカードを1枚回復することで、味方のカードを1枚回復する')) {
+      // Recover the target (enemy card)
+      if (target.isFatigued) {
+        target.isFatigued = false;
+        // Find a fatigued card on own field to recover
+        const ownFatigued = player.field.find(c => c.isFatigued);
+        if (ownFatigued) {
+          ownFatigued.isFatigued = false;
+          return { success: true, message: `敵の${target.name}と自分の${ownFatigued.name}を回復しました` };
+        } else {
+          return { success: true, message: `敵の${target.name}を回復しました（自分の回復対象なし）` };
+        }
+      } else {
+        return { success: false, message: '対象カードは疲労していません' };
+      }
+    }
+    // Default
     return { success: true, message: `${target.name}に対して${ability.description}を実行しました` };
   }
 
@@ -1396,6 +1646,20 @@ class CardEffects {
     // 共通効果を優先チェック
     const commonResult = this.processCommonEffects(player, card, ability);
     if (commonResult) return commonResult;
+
+    // Pitcher Plant: 敵フィールドから1匹選択し、疲労させる
+    if (card.id === 'pitcherplant' && ability.description.includes('敵フィールドから1匹選択し、疲労させる')) {
+      // Find a non-fatigued enemy card
+      const opponent = this.getOpponent(player);
+      const candidates = opponent.field.filter(c => !c.isFatigued);
+      if (candidates.length > 0) {
+        // Fatigue the first available
+        candidates[0].isFatigued = true;
+        return { success: true, message: `敵の${candidates[0].name}を疲労させました` };
+      } else {
+        return { success: false, message: '疲労させる対象がいません' };
+      }
+    }
 
     console.log('反応効果実行:', { 
       player: player.name, 
@@ -1620,14 +1884,16 @@ class CardEffects {
   }
 
   // 勝利条件チェック
-  checkVictoryCondition(player, ability, card) {
+  checkVictoryCondition(player, ability, card, checkOnly = false) {
     console.log('🏆 勝利条件チェック開始:', { 
       playerName: player.name, 
       cardName: card.name, 
       cardId: card.id,
       abilityDescription: ability.description,
       playerPoints: player.points,
-      abilityCost: ability.cost 
+      abilityCost: ability.cost,
+      currentTurn: this.game.turn || 'undefined',
+      checkOnly: checkOnly
     });
     
     const opponent = this.getOpponent(player);
@@ -1678,6 +1944,22 @@ class CardEffects {
       return { success: true, message: `${player.name}の勝利！`, victory: true };
     }
 
+    // フントークン所持数による勝利条件
+    if (ability.description.includes('フントークンを5以上所持してがいる場合')) {
+      const funTokenCount = player.funTokens || 0;
+      console.log('🔍 フントークン所持数チェック:', { funTokenCount, required: 5 });
+      if (funTokenCount >= 5) {
+        console.log('🎉 勝利条件達成！フントークン5以上で勝利');
+        if (!checkOnly) {
+          this.game.endGame(player);
+        }
+        return { success: true, message: `${player.name}の勝利！フントークンを5個以上所持！`, victory: true };
+      } else {
+        console.log('❌ フントークン所持数不足');
+        return { success: false, message: `勝利条件を満たしていません（現在フントークン: ${funTokenCount}/5必要）` };
+      }
+    }
+
     // 追放枚数系勝利条件
     if (ability.description.includes('追放が10体になった時')) {
       const exileCount = this.game.exileField ? this.game.exileField.length : 0;
@@ -1703,17 +1985,29 @@ class CardEffects {
 
     // 侵略回数系（統一版）
     if (ability.description.includes('侵略した回数が') || ability.description.includes('1ラウンドで侵略した回数が')) {
-      // パターン1: "6超過の場合"
+      console.log('🔍 侵略回数系勝利条件チェック開始:', {
+        description: ability.description,
+        playerName: player.name,
+        playerId: player.id
+      });
+      
+      // パターン1: "6回以上の場合"
+      const atLeastMatch = ability.description.match(/侵略した回数が(\d+)回以上の場合/);
+      // パターン2: "6超過の場合"（後方互換のため残す）
       const exceedMatch = ability.description.match(/侵略した回数が(\d+)超過の場合/);
-      // パターン2: "7を超えていた場合"
+      // パターン3: "7を超えていた場合"（後方互換のため残す）
       const exceedMatch2 = ability.description.match(/侵略した回数が(\d+)を超えていた場合/);
-      // パターン3: "6回侵略した場合"（同じターンに）
+      // パターン4: "6回侵略した場合"（同じターンに）
       const exactMatch = ability.description.match(/(\d+)回侵略した場合/);
       
       let requiredCount = 0;
+      let isAtLeast = false;
       let isExceed = false;
       
-      if (exceedMatch) {
+      if (atLeastMatch) {
+        requiredCount = parseInt(atLeastMatch[1]);
+        isAtLeast = true;
+      } else if (exceedMatch) {
         requiredCount = parseInt(exceedMatch[1]);
         isExceed = true;
       } else if (exceedMatch2) {
@@ -1721,30 +2015,64 @@ class CardEffects {
         isExceed = true;
       } else if (exactMatch) {
         requiredCount = parseInt(exactMatch[1]);
+        isAtLeast = false;
         isExceed = false;
       }
       
       const currentInvasionCount = this.getInvasionCount(player.id);
-      console.log('🔍 侵略回数条件チェック:', { 
+      console.log('🔍 侵略回数条件詳細チェック:', { 
         requiredCount, 
         currentCount: currentInvasionCount, 
+        isAtLeast,
         isExceed,
-        description: ability.description
+        description: ability.description,
+        allInvasionCounts: this.invasionCount
+      });
+      
+      // デバッグ: 条件の詳細チェック
+      console.log('🔬 条件チェック詳細:', {
+        'currentInvasionCount >= requiredCount': currentInvasionCount >= requiredCount,
+        'currentInvasionCount > requiredCount': currentInvasionCount > requiredCount,
+        'currentInvasionCount === requiredCount': currentInvasionCount === requiredCount,
+        currentInvasionCount,
+        requiredCount,
+        isAtLeast,
+        isExceed
       });
       
       let conditionMet = false;
-      if (isExceed) {
+      if (isAtLeast) {
+        conditionMet = currentInvasionCount >= requiredCount;
+        console.log(`📊 isAtLeast条件: ${currentInvasionCount} >= ${requiredCount} = ${conditionMet}`);
+      } else if (isExceed) {
         conditionMet = currentInvasionCount > requiredCount;
+        console.log(`📊 isExceed条件: ${currentInvasionCount} > ${requiredCount} = ${conditionMet}`);
       } else {
         conditionMet = currentInvasionCount >= requiredCount;
+        console.log(`📊 デフォルト条件: ${currentInvasionCount} >= ${requiredCount} = ${conditionMet}`);
       }
       
       if (conditionMet) {
-        console.log('🎉 勝利条件達成！侵略回数で勝利');
+        console.log('🎉 侵略回数勝利条件達成！', {
+          playerName: player.name,
+          currentCount: currentInvasionCount,
+          requiredCount: requiredCount,
+          isExceed: isExceed,
+          comparison: isExceed ? '超過' : '以上'
+        });
         this.game.endGame(player);
         return { success: true, message: `${player.name}の勝利！侵略回数達成！`, victory: true };
       } else {
-        const comparison = isExceed ? '超過' : '以上';
+        const comparison = isAtLeast ? '以上' : (isExceed ? '超過' : '以上');
+        console.log('❌ 侵略回数勝利条件不満足:', {
+          playerName: player.name,
+          currentCount: currentInvasionCount,
+          requiredCount: requiredCount,
+          comparison: comparison,
+          isAtLeast: isAtLeast,
+          isExceed: isExceed,
+          message: `現在侵略回数: ${currentInvasionCount}/${requiredCount}${comparison}必要`
+        });
         return { success: false, message: `勝利条件を満たしていません（現在侵略回数: ${currentInvasionCount}/${requiredCount}${comparison}必要）` };
       }
     }
@@ -2688,6 +3016,96 @@ class CardEffects {
     }
 
     return { processed: false };
+  }
+
+  // 永続効果処理（ラウンド制限システム）
+  processPersistentEffects(gameState, eventType, cardData) {
+    if (!gameState.persistentEffects) {
+      gameState.persistentEffects = {};
+    }
+    
+    // ブナシメジの永続効果：反応持ちが追放された場合の処理
+    if (eventType === 'card_exiled' && cardData) {
+      const exiledCard = cardData;
+      
+      // 追放されたカードが反応持ちかどうかチェック
+      const hasReactionAbility = exiledCard.abilities && 
+        exiledCard.abilities.some(a => a.type === '反応');
+      
+      if (hasReactionAbility) {
+        const playerField = gameState.players[gameState.currentPlayer].field;
+        const mushroomCards = playerField.filter(c => c.id === 'mushroom');
+        
+        if (mushroomCards.length > 0) {
+          // 1ラウンドに1度のみチェック
+          const roundKey = `mushroom_exile_${gameState.currentRound}_${gameState.currentPlayer}`;
+          
+          if (!gameState.persistentEffects[roundKey]) {
+            // ブナシメジを1体追放
+            const mushroomToExile = mushroomCards[0];
+            const mushroomIndex = playerField.findIndex(c => c.fieldId === mushroomToExile.fieldId);
+            
+            if (mushroomIndex !== -1) {
+              playerField.splice(mushroomIndex, 1);
+              
+              // 追放フィールドに移動
+              if (!gameState.exileField) {
+                gameState.exileField = [];
+              }
+              gameState.exileField.push(mushroomToExile);
+              
+              gameState.persistentEffects[roundKey] = true;
+              
+              this.gamelog.log(`${this.getCurrentPlayerName()}'s mushroom exiled due to reaction card exile`);
+              return { success: true, message: `反応持ちカードの追放により、ブナシメジを1体追放しました` };
+            }
+          }
+        }
+      }
+    }
+    
+    return { processed: false };
+  }
+
+  // Mushroom specific effects for persistent card area effects
+  handleMushroomEffects(gameState, cardId, effectType) {
+    switch (effectType) {
+      case 'mushroom_1':
+        // 獲得時、カード置き場に残る。全てのカードを安く獲得できる。
+        this.gamelog.log(`${this.getCurrentPlayerName()} places mushroom in card area for cost reduction effect`);
+        
+        // Mark mushroom as persistent in card area
+        if (!gameState.persistentCardEffects) {
+          gameState.persistentCardEffects = {};
+        }
+        if (!gameState.persistentCardEffects[gameState.currentPlayer]) {
+          gameState.persistentCardEffects[gameState.currentPlayer] = [];
+        }
+        
+        gameState.persistentCardEffects[gameState.currentPlayer].push({
+          cardId: 'mushroom',
+          effect: 'cost_reduction',
+          description: '全てのカードを安く獲得できる'
+        });
+        
+        return true;
+        
+      case 'mushroom_2':
+        // 追放時、相手の強化数を半分にする。
+        this.gamelog.log(`${this.getCurrentPlayerName()} exiles mushroom and halves opponent's enhancement count`);
+        
+        const opponent = gameState.currentPlayer === 'player1' ? 'player2' : 'player1';
+        const currentEnhancements = gameState.playerStats[opponent].enhancementCount || 0;
+        const newEnhancementCount = Math.floor(currentEnhancements / 2);
+        
+        gameState.playerStats[opponent].enhancementCount = newEnhancementCount;
+        
+        this.gamelog.log(`${opponent}'s enhancement count reduced from ${currentEnhancements} to ${newEnhancementCount}`);
+        return true;
+        
+      default:
+        return false;
+    }
   }
 }
 

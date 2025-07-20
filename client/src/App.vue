@@ -31,6 +31,9 @@
       :is-my-turn="isMyTurn"
       :socket="socket"
       :debug-game-state="debugGameState"
+      :card-effect-states="cardEffectStates"
+      :available-victory-effects="availableVictoryEffects"
+      :player-id="playerId"
       @card-click="showCardOptionsMenu"
       @card-detail="showCardDetail"
       @use-ability="useAbility"
@@ -95,6 +98,28 @@
     <div v-if="ipAnimation.show" class="ip-animation" :class="ipAnimation.type">
       {{ ipAnimation.type === "gain" ? "+" : "-" }}{{ ipAnimation.amount }}IP
     </div>
+
+    <!-- デバッグボタン -->
+    <button 
+      v-if="gameState === 'playing'" 
+      class="debug-toggle-button"
+      @click="toggleDebugPanel"
+    >
+      🔧
+    </button>
+
+    <!-- デバッグパネルモーダル -->
+    <div v-if="showDebugPanel" class="debug-modal-overlay" @click="closeDebugPanel">
+      <div class="debug-modal-content" @click.stop>
+        <button class="debug-close-button" @click="closeDebugPanel">×</button>
+        <DebugPanel
+          :debug-game-state="debugGameState"
+          :card-effect-states="cardEffectStates"
+          :available-victory-effects="availableVictoryEffects"
+          :player-id="playerId"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -105,6 +130,7 @@ import Lobby from "./components/Lobby.vue";
 import GameBoard from "./components/GameBoard.vue";
 import GameModals from "./components/GameModals.vue";
 import MessageLog from "./components/MessageLog.vue";
+import DebugPanel from "./components/DebugPanel.vue";
 
 export default {
   name: "App",
@@ -114,6 +140,7 @@ export default {
     GameBoard,
     GameModals,
     MessageLog,
+    DebugPanel,
   },
   data() {
     return {
@@ -193,6 +220,14 @@ export default {
       // 勝者
       winner: null,
 
+      // カード効果状態
+      cardEffectStates: {
+        invasionCounts: {},
+      },
+
+      // 勝利効果の状態管理
+      availableVictoryEffects: [], // 使用可能な勝利効果のリスト
+
       // IPアニメーション
       ipAnimation: {
         show: false,
@@ -202,6 +237,9 @@ export default {
 
       // デバッグ用ゲーム状態
       debugGameState: {},
+
+      // デバッグパネルの表示状態
+      showDebugPanel: false,
     };
   },
 
@@ -336,6 +374,67 @@ export default {
 
         this.addMessage(data.message, "info");
       });
+
+      // カード効果状態の即座更新を受信
+      this.socket.on("cardEffectStates", (effectStates) => {
+        console.log("🔄 cardEffectStates即座更新受信:", effectStates);
+        this.cardEffectStates = {
+          invasionCounts: effectStates.invasionCounts || {},
+          ...effectStates,
+        };
+        console.log("🔄 カード効果状態即座更新完了:", this.cardEffectStates);
+      });
+
+      // 勝利効果が使用可能になった時の通知を受信
+      this.socket.on("victory-effects-available", (availableEffects) => {
+        console.log("🏆=== 勝利効果使用可能通知受信 ===");
+        console.log("📨 受信データ:", availableEffects);
+        console.log("📊 受信データ詳細:", {
+          effectsCount: availableEffects?.length || 0,
+          effects: availableEffects,
+          currentPlayerId: this.playerId,
+          socketId: this.socket?.id,
+        });
+
+        this.availableVictoryEffects = availableEffects || [];
+        console.log("💾 状態更新後:", this.availableVictoryEffects);
+
+        // プレイヤーに関連する勝利効果のみフィルタリング
+        const playerEffects = availableEffects.filter((effect) => {
+          console.log("🔍 効果フィルタリング:", {
+            effectPlayerId: effect.playerId,
+            currentPlayerId: this.playerId,
+            match: effect.playerId === this.playerId,
+          });
+          return effect.playerId === this.playerId;
+        });
+
+        console.log("👤 プレイヤー関連効果:", {
+          playerEffectsCount: playerEffects.length,
+          playerEffects: playerEffects,
+        });
+
+        if (playerEffects.length > 0) {
+          const message = `🏆 勝利効果が使用可能になりました！（${playerEffects.length}個）`;
+          console.log("📢 メッセージ表示:", message);
+          this.addMessage(message, "victory");
+
+          // 各効果の詳細をログ出力
+          playerEffects.forEach((effect, index) => {
+            console.log(`🎯 勝利効果 ${index + 1}:`, {
+              cardName: effect.cardName,
+              cardInstanceId: effect.cardInstanceId,
+              abilityIndex: effect.abilityIndex,
+              condition: effect.condition,
+            });
+          });
+        } else {
+          console.log("⚠️ 自分用の勝利効果がありません");
+        }
+
+        console.log("🔄 勝利効果状態更新完了:", this.availableVictoryEffects);
+        console.log("🏆=== 勝利効果処理完了 ===");
+      });
     },
 
     joinGame(playerName) {
@@ -346,7 +445,8 @@ export default {
     },
 
     updateGameState(state) {
-      console.log("ゲーム状態更新:", state);
+      console.log("🔄=== ゲーム状態更新開始 ===");
+      console.log("📨 受信状態:", state);
 
       // ターン/フェーズ変更を検知
       const turnChanged = this.currentTurn !== state.turn;
@@ -366,14 +466,12 @@ export default {
       this.currentPhase = state.phase;
       this.currentPlayer = state.currentPlayer || ""; // 現在のプレイヤーを更新
 
-      console.log(
-        "現在のフェーズ:",
-        this.currentPhase,
-        "ゲーム状態:",
-        this.gameState,
-        "現在のプレイヤー:",
-        this.currentPlayer
-      );
+      console.log("🎮 ゲーム状態更新:", {
+        currentPhase: this.currentPhase,
+        gameState: this.gameState,
+        currentPlayer: this.currentPlayer,
+        isMyTurn: this.isMyTurn,
+      });
 
       // ゲームが開始されたらマッチング状態を解除
       if (state.status === "playing") {
@@ -383,6 +481,15 @@ export default {
       if (state.players && state.players[this.socket.id]) {
         const playerData = state.players[this.socket.id];
         this.playerId = this.socket.id;
+
+        console.log("� プレイヤーID設定詳細:", {
+          socketId: this.socket.id,
+          playerId: this.playerId,
+          socketIdType: typeof this.socket.id,
+          socketIdLength: this.socket.id?.length,
+          playerDataExists: !!playerData,
+          allPlayerIds: Object.keys(state.players || {}),
+        });
 
         // IPアニメーション付きで更新
         this.updatePlayerIP(playerData.ip);
@@ -396,6 +503,27 @@ export default {
           ...card,
           instanceId: card.instanceId || card.fieldId, // instanceIdまたはfieldIdを使用
         }));
+
+        // プレイヤーフィールドの勝利効果をチェック
+        const victoryCards = this.playerField.filter(
+          (card) =>
+            card.abilities &&
+            card.abilities.some((ability) => ability.type === "勝利")
+        );
+
+        if (victoryCards.length > 0) {
+          console.log("🏆 プレイヤーフィールドの勝利カード:", {
+            victoryCardsCount: victoryCards.length,
+            victoryCards: victoryCards.map((card) => ({
+              name: card.name,
+              instanceId: card.instanceId,
+              victoryAbilities: card.abilities.filter(
+                (ability) => ability.type === "勝利"
+              ),
+            })),
+            currentAvailableEffects: this.availableVictoryEffects,
+          });
+        }
 
         // 相手のフィールドを取得
         const opponentId = Object.keys(state.players).find(
@@ -439,6 +567,15 @@ export default {
         }));
       }
 
+      // カード効果状態を更新
+      if (state.cardEffectStates) {
+        this.cardEffectStates = {
+          invasionCounts: state.cardEffectStates.invasionCounts || {},
+          ...state.cardEffectStates,
+        };
+        console.log("🔄 カード効果状態更新:", this.cardEffectStates);
+      }
+
       // デバッグ用ゲーム状態を更新
       this.debugGameState = {
         turn: this.currentTurn,
@@ -452,7 +589,10 @@ export default {
         })),
         neutralField: this.neutralField,
         exileField: this.exileField,
+        availableVictoryEffects: this.availableVictoryEffects,
       };
+
+      console.log("🔄=== ゲーム状態更新完了 ===");
     },
 
     placeBid(data) {
@@ -504,15 +644,58 @@ export default {
         return;
       }
 
-      console.log("=== useAbility 呼び出し ===");
-      console.log("カード情報:", card);
-      console.log("card.instanceId:", card.instanceId);
-      console.log("card.fieldId:", card.fieldId);
-      console.log("ability:", ability);
+      console.log("🎮=== useAbility 呼び出し ===");
+      console.log("📋 カード情報:", card);
+      console.log("🔹 card.instanceId:", card.instanceId);
+      console.log("🔹 card.fieldId:", card.fieldId);
+      console.log("⚡ ability:", ability);
+      console.log("🎯 ability.type:", ability.type);
+
+      // 勝利効果の場合は詳細ログ
+      if (ability.type === "勝利") {
+        console.log("🏆=== 勝利効果使用開始 ===");
+        console.log("🎯 勝利効果詳細:", {
+          cardName: card.name,
+          abilityDescription: ability.description,
+          abilityCost: ability.cost,
+          cardInstanceId: card.instanceId,
+          abilityIndex: card.abilities.indexOf(ability),
+        });
+
+        // 使用可能な勝利効果リストと照合
+        const matchingEffect = this.availableVictoryEffects.find(
+          (effect) =>
+            effect.cardInstanceId === card.instanceId &&
+            effect.abilityIndex === card.abilities.indexOf(ability)
+        );
+
+        console.log("🔍 勝利効果照合結果:", {
+          availableEffectsCount: this.availableVictoryEffects.length,
+          availableEffects: this.availableVictoryEffects,
+          matchingEffect: matchingEffect,
+          isAvailable: !!matchingEffect,
+        });
+
+        if (!matchingEffect) {
+          console.warn("⚠️ この勝利効果は使用可能リストにありません");
+          this.addMessage("この勝利効果は現在使用できません", "warning");
+          return;
+        } else {
+          console.log("✅ 勝利効果使用可能確認済み");
+        }
+      }
 
       const cardCount = this.getCardCount(card.id);
+      console.log("📊 カード枚数チェック:", {
+        cardId: card.id,
+        cardCount: cardCount,
+        requiredCost: ability.cost,
+        isFatigued: card.isFatigued,
+      });
+
       if (cardCount >= ability.cost && !card.isFatigued) {
-        console.log("アビリティ使用:", {
+        console.log("✅ アビリティ使用条件クリア");
+        console.log("📤 アビリティ使用:", {
           card: card.name,
           ability: ability.description,
           instanceId: card.instanceId,
@@ -523,15 +706,23 @@ export default {
           cardInstanceId: card.instanceId,
           abilityIndex: card.abilities.indexOf(ability),
         };
-        console.log("サーバーに送信するpayload:", payload);
+        console.log("📨 サーバーに送信するpayload:", payload);
 
         this.socket.emit("useAbility", payload);
         this.addMessage(`${card.name}の${ability.type}を使用`, "info");
+
+        if (ability.type === "勝利") {
+          console.log("🏆 勝利効果送信完了");
+        }
       } else if (card.isFatigued) {
+        console.log("❌ 疲労しているため使用不可");
         this.addMessage("疲労しているカードはプレイできません", "warning");
       } else {
+        console.log("❌ カード枚数不足");
         this.addMessage("カード枚数が不足しています", "warning");
       }
+
+      console.log("🎮=== useAbility 処理完了 ===");
     },
 
     getCardCount(cardId) {
@@ -622,6 +813,18 @@ export default {
       this.showMatchResult = false;
       this.showCardOptions = false;
       this.selectedCardForOptions = null;
+
+      // 勝利効果の状態をリセット
+      this.availableVictoryEffects = [];
+
+      // カード効果状態をリセット
+      this.cardEffectStates = {
+        invasionCounts: {},
+      };
+
+      // デバッグ用ゲーム状態をリセット
+      this.debugGameState = {};
+
       if (this.matchResultTimer) {
         clearTimeout(this.matchResultTimer);
         this.matchResultTimer = null;
@@ -868,6 +1071,15 @@ export default {
       this.showBidCompleted = false;
       this.bidCompletedData = null;
     },
+
+    // デバッグパネルの表示/非表示切り替え
+    toggleDebugPanel() {
+      this.showDebugPanel = !this.showDebugPanel;
+    },
+
+    closeDebugPanel() {
+      this.showDebugPanel = false;
+    },
   },
 
   beforeUnmount() {
@@ -939,6 +1151,97 @@ export default {
   100% {
     opacity: 0;
     transform: translateX(-50%) translateY(-30px) scale(0.9);
+  }
+}
+
+
+
+/* デバッグボタン */
+.debug-toggle-button {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #333, #555);
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.debug-toggle-button:hover {
+  background: linear-gradient(135deg, #555, #777);
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.debug-toggle-button:active {
+  transform: scale(0.95);
+}
+
+/* デバッグモーダル */
+.debug-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(3px);
+}
+
+.debug-modal-content {
+  position: relative;
+  background: transparent;
+  border-radius: 12px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  animation: debugModalFadeIn 0.3s ease-out;
+}
+
+.debug-close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(220, 53, 69, 0.9);
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 2001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.debug-close-button:hover {
+  background: rgba(220, 53, 69, 1);
+  transform: scale(1.1);
+}
+
+@keyframes debugModalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 </style>

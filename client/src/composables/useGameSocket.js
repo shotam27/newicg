@@ -17,6 +17,7 @@ export function useGameSocket({
   setOpponentName,
   setOpponentIP,
   showMultipleTargetSelection, // 複数選択UI表示用の関数を追加
+  updateVictoryEffects, // 勝利効果状態更新用の関数を追加
 }) {
   const socket = ref(null);
   const isConnected = ref(false);
@@ -71,6 +72,18 @@ export function useGameSocket({
         'warning'
       );
       addMessage(`📝 理由: ${data.unimplementedInfo.reason}`, 'info');
+    });
+    socket.value.on('victory-effects-available', (availableEffects) => {
+      console.log('✨ 勝利効果が使用可能になりました:', availableEffects);
+      if (updateVictoryEffects) {
+        updateVictoryEffects(availableEffects);
+      }
+      
+      // プレイヤーに通知
+      const playerEffects = availableEffects.filter(effect => effect.playerId === socket.value.id);
+      if (playerEffects.length > 0) {
+        addMessage(`🏆 勝利効果が使用可能になりました！（${playerEffects.length}個）`, 'victory');
+      }
     });
   }
 

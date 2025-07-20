@@ -23,7 +23,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -50,7 +50,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -131,7 +131,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -158,7 +158,7 @@
         {
           "type": "勝利",
           "cost": 3,
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -185,7 +185,7 @@
         {
           "type": "勝利",
           "cost": 3,
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -218,55 +218,55 @@
     },
     {
       "number": 9,
-      "id": "cordyceps",
-      "name": "とうちゅうかそう",
+      "id": "skunk",
+      "name": "スカンク",
       "abilities": [
         {
           "cost": 1,
           "type": "侵略",
-          "description": "自分のIPを5消費し、相手のカードを疲労させる"
+          "description": "1体疲労させる"
         },
         {
           "cost": 2,
-          "type": "反応",
-          "description": "IP+5"
+          "type": "強化",
+          "description": "フントークンを生成する"
         },
         {
           "cost": 3,
           "type": "侵略",
-          "description": "相手の侵略持ちカードを発動させる。"
+          "description": "フントークンを破棄し、1体追放する"
         },
         {
           "cost": 3,
           "type": "勝利",
-          "description": "IP40以上"
+          "description": "フントークンを5以上所持してがいる場合"
         }
       ]
     },
     {
       "number": 10,
-      "id": "mushroom",
-      "name": "ブナシメジ",
+      "id": "pitcherplant",
+      "name": "ウツボカズラ",
       "abilities": [
         {
+          "type": "獲得時",
           "cost": 1,
-          "type": "強化",
-          "description": "自フィールドに反応持ちががいる場合、5IP消費してブナシメジを生成する"
+          "description": "中立にハエがいない場合、ハエを生成する。"
         },
         {
-          "cost": 2,
-          "type": "永続",
-          "description": "1ラウンドにつき一度のみ、自分の反応持ちが追放された場合、自分のブナシメジを1体追放しなければならない"
-        },
-        {
-          "cost": 3,
           "type": "反応",
-          "description": "IP+5"
+          "cost": 1,
+          "description": "敵フィールドから1匹選択し、疲労させる"
         },
         {
-          "cost": 7,
+          "type": "強化",
+          "cost": 2,
+          "description": "敵のカードを1枚回復することで、味方のカードを1枚回復する。"
+        },
+        {
           "type": "勝利",
-          "description": "IP40以上"
+          "cost": 3,
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -428,7 +428,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -455,7 +455,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が7を超えていた場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -485,7 +485,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -539,7 +539,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が7を超えていた場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -572,28 +572,28 @@
     },
     {
       "number": 22,
-      "id": "skunk",
-      "name": "スカンク",
+      "id": "cordyceps",
+      "name": "とうちゅうかそう",
       "abilities": [
         {
           "cost": 1,
           "type": "侵略",
-          "description": "1体疲労させる"
+          "description": "自分のIPを5消費し、相手のカードを疲労させる"
         },
         {
           "cost": 2,
-          "type": "強化",
-          "description": "フントークンを生成する"
+          "type": "反応",
+          "description": "IP+5"
         },
         {
           "cost": 3,
           "type": "侵略",
-          "description": "フントークンを破棄し、1体追放する"
+          "description": "相手の侵略持ちカードを発動させる。"
         },
         {
           "cost": 3,
           "type": "勝利",
-          "description": "フントークンを5以上所持してがいる場合"
+          "description": "IP40以上"
         }
       ]
     },
@@ -647,7 +647,7 @@
         {
           "cost": 4,
           "type": "勝利",
-          "description": "同じターンに6回侵略した場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -677,7 +677,7 @@
         {
           "cost": 4,
           "type": "勝利",
-          "description": "同じターンに6回侵略した場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -737,7 +737,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "同じターンに6回侵略した場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -764,7 +764,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "同じターンに6回侵略した場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -848,7 +848,7 @@
         {
           "cost": 3,
           "type": "勝利",
-          "description": "1ラウンドで侵略した回数が6超過の場合"
+          "description": "1ラウンドで侵略した回数が6回以上の場合"
         }
       ]
     },
@@ -909,6 +909,33 @@
           "cost": 3,
           "type": "勝利",
           "description": "累計IPが40以上の場合"
+        }
+      ]
+    },
+    {
+      "number": 35,
+      "id": "mushroom",
+      "name": "ブナシメジ",
+      "abilities": [
+        {
+          "cost": 1,
+          "type": "強化",
+          "description": "自フィールドに反応持ちががいる場合、5IP消費してブナシメジを生成する"
+        },
+        {
+          "cost": 2,
+          "type": "永続",
+          "description": "1ラウンドにつき一度のみ、自分の反応持ちが追放された場合、自分のブナシメジを1体追放しなければならない"
+        },
+        {
+          "cost": 3,
+          "type": "反応",
+          "description": "IP+5"
+        },
+        {
+          "cost": 7,
+          "type": "勝利",
+          "description": "IP40以上"
         }
       ]
     }

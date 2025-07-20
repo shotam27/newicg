@@ -644,10 +644,13 @@
             }
 
             checkAuth() {
+                console.log('checkAuth called', { token: !!this.token, username: this.username });
                 if (this.token && this.username) {
+                    console.log('Auth valid, showing main section');
                     this.showMainSection();
                     this.loadCards();
                 } else {
+                    console.log('Auth invalid, showing login section');
                     this.showLoginSection();
                 }
             }
@@ -703,16 +706,25 @@
 
             async loadCards() {
                 try {
+                    console.log('Loading cards...');
                     const response = await this.apiCall('/api/cards');
+                    console.log('Response status:', response.status);
                     if (response.ok) {
                         const data = await response.json();
+                        console.log('Cards data received:', data);
                         this.cards = data.cards;
+                        console.log('Cards stored:', this.cards.length);
                         if (this.currentView === 'cards') {
+                            console.log('Rendering cards...');
                             this.renderCards();
                         }
+                    } else {
+                        console.error('Failed to load cards:', response.status);
+                        this.showAlert('カードの読み込みに失敗しました (Status: ' + response.status + ')', 'error');
                     }
                 } catch (error) {
-                    this.showAlert('カードの読み込みに失敗しました', 'error');
+                    console.error('Error loading cards:', error);
+                    this.showAlert('カードの読み込みに失敗しました: ' + error.message, 'error');
                 }
             }
 
@@ -748,8 +760,15 @@
             }
 
             renderCards(filteredCards = null) {
+                console.log('renderCards called');
                 const container = document.getElementById('cardsContainer');
                 const cardsToRender = filteredCards || this.cards;
+                console.log('Cards to render:', cardsToRender ? cardsToRender.length : 'null');
+
+                if (!cardsToRender || cardsToRender.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">カードが見つかりません</div>';
+                    return;
+                }
 
                 container.innerHTML = cardsToRender.map(card => `
                     <div class="card-item">
@@ -773,6 +792,7 @@
                         </div>
                     </div>
                 `).join('');
+                console.log('Cards rendered successfully');
             }
 
             renderEffectStatuses(filteredStatuses = null) {
@@ -1047,7 +1067,9 @@
             }
 
             async apiCall(url, options = {}) {
-                return fetch(url, {
+                console.log('API call:', url, options);
+                console.log('Token available:', !!this.token);
+                const response = await fetch(url, {
                     ...options,
                     headers: {
                         'Content-Type': 'application/json',
@@ -1055,6 +1077,8 @@
                         ...options.headers
                     }
                 });
+                console.log('API response:', response.status, response.statusText);
+                return response;
             }
 
             showAlert(message, type) {

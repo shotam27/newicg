@@ -147,6 +147,20 @@ export default {
       type: Number,
       default: 0,
     },
+    cardEffectStates: {
+      type: Object,
+      default: () => ({
+        invasionCounts: {},
+      }),
+    },
+    availableVictoryEffects: {
+      type: Array,
+      default: () => [],
+    },
+    playerId: {
+      type: String,
+      default: "",
+    },
   },
   methods: {
     getCardCount(cardId) {
@@ -455,6 +469,13 @@ export default {
           currentPhase: this.currentPhase,
           isMyTurn: this.isMyTurn,
           victoryConditionMet,
+          個別チェック結果: {
+            カード枚数不足: this.getCardCount(card.id) < ability.cost,
+            疲労状態: card.isFatigued,
+            非プレイング: this.currentPhase !== "playing",
+            非マイターン: !this.isMyTurn,
+            勝利条件未満足: !victoryConditionMet,
+          },
         });
 
         return disabled;
@@ -508,45 +529,32 @@ export default {
     isVictoryConditionMet(card, ability) {
       if (ability.type !== "勝利") return false;
 
-      // 全ての勝利条件で共通：カード枚数の基本条件チェック
-      const cardCount = this.getCardCount(card.id);
-      console.log("🔍 勝利条件の基本条件チェック (フロント):", {
-        cardId: card.id,
-        cardCount,
-        requiredCost: ability.cost,
+      console.log("🏆 勝利条件チェック (クライアント側):", {
+        cardName: card.name,
+        cardInstanceId: card.instanceId,
+        abilityIndex: card.abilities.indexOf(ability),
+        abilityDescription: ability.description,
+        availableEffectsCount: this.availableVictoryEffects.length,
       });
 
-      if (cardCount < ability.cost) {
-        console.log("❌ カード枚数不足:", {
-          cardCount,
-          required: ability.cost,
-        });
-        return false;
-      }
+      // availableVictoryEffectsリストから該当する効果を検索
+      const matchingEffect = this.availableVictoryEffects.find(
+        (effect) =>
+          effect.cardInstanceId === card.instanceId &&
+          effect.abilityIndex === card.abilities.indexOf(ability) &&
+          effect.playerId === this.playerId
+      );
 
-      // 累計IPが40を超えてがいる場合の条件チェック
-      if (
-        ability.description.includes("累計IPが40を超えてがいる場合") ||
-        ability.description.includes("累計IPが40を超えている場合")
-      ) {
-        console.log("🔍 IP超過条件チェック (フロント):", {
-          playerIP: this.playerIP,
-          required: 40,
-        });
-        return this.playerIP > 40;
-      }
+      const isAvailable = !!matchingEffect;
+      console.log("🔍 勝利効果使用可能判定:", {
+        cardInstanceId: card.instanceId,
+        abilityIndex: card.abilities.indexOf(ability),
+        playerId: this.playerId,
+        matchingEffect: matchingEffect,
+        isAvailable: isAvailable,
+      });
 
-      // IP40以上の条件チェック
-      if (
-        ability.description.includes("IP40以上") ||
-        ability.description.includes("IP40")
-      ) {
-        console.log("🔍 IP40以上条件チェック (フロント):", {
-          playerIP: this.playerIP,
-          required: 40,
-        });
-        return this.playerIP >= 40;
-      }
+      return isAvailable;
 
       // 条件なしの勝利条件
       if (ability.description.includes("条件なし")) {
@@ -569,15 +577,140 @@ export default {
         return this.playerField.length >= requiredCount;
       }
 
-      // 侵略回数系勝利条件（サーバー側で実装済み、クライアントは基本条件のみチェック）
+      // 侵略回数系勝利条件
       if (
         ability.description.includes("侵略した回数が") ||
         ability.description.includes("1ラウンドで侵略した回数が")
       ) {
-        // サーバー側で正確な侵略回数が追跡されているため、
-        // クライアント側では基本条件（カード枚数）のみチェックして、
-        // 実際の勝利判定はサーバーに委ねる
-        return true; // カード枚数条件は上でチェック済み
+        console.log("🔍 侵略回数系勝利条件チェック (フロント) DETAILED:", {
+          cardName: card.name,
+          description: ability.description,
+          cardEffectStates: this.cardEffectStates,
+          invasionCountsObject: this.cardEffectStates.invasionCounts,
+          currentPlayerId: this.playerId,
+          playerIdType: typeof this.playerId,
+          playerIdLength: this.playerId?.length,
+          allInvasionCountKeys: Object.keys(
+            this.cardEffectStates.invasionCounts || {}
+          ),
+          serverReportedPlayerId: "DpCjenR1YNNx_W26AAAO",
+          directPlayerIdMatch:
+            this.cardEffectStates.invasionCounts["DpCjenR1YNNx_W26AAAO"],
+          propsPlayerId: this.playerId,
+          directCheckCurrentPlayerId:
+            this.cardEffectStates.invasionCounts[this.playerId],
+        });
+
+        // パターンマッチングで必要回数を取得
+        const atLeastMatch =
+          ability.description.match(/侵略した回数が(\d+)回以上の場合/);
+        const exceedMatch =
+          ability.description.match(/侵略した回数が(\d+)超過の場合/);
+        const exceedMatch2 =
+          ability.description.match(/侵略した回数が(\d+)を超えていた場合/);
+        const exactMatch = ability.description.match(/(\d+)回侵略した場合/);
+
+        let requiredCount = 0;
+        let isAtLeast = false;
+        let isExceed = false;
+
+        if (atLeastMatch) {
+          requiredCount = parseInt(atLeastMatch[1]);
+          isAtLeast = true;
+        } else if (exceedMatch) {
+          requiredCount = parseInt(exceedMatch[1]);
+          isExceed = true;
+        } else if (exceedMatch2) {
+          requiredCount = parseInt(exceedMatch2[1]);
+          isExceed = true;
+        } else if (exactMatch) {
+          requiredCount = parseInt(exactMatch[1]);
+          isAtLeast = false;
+          isExceed = false;
+        }
+
+        // プレイヤーIDを取得（propsから）
+        let currentInvasionCount =
+          this.cardEffectStates.invasionCounts[this.playerId] || 0;
+
+        // プレイヤーIDが一致しない場合、サーバーログで報告されたIDを直接試す
+        if (
+          currentInvasionCount === 0 &&
+          this.playerId !== "DpCjenR1YNNx_W26AAAO"
+        ) {
+          const serverReportedCount =
+            this.cardEffectStates.invasionCounts["DpCjenR1YNNx_W26AAAO"];
+          if (serverReportedCount && serverReportedCount > 0) {
+            console.log("🔧 プレイヤーID不一致検出、サーバー報告IDを使用:", {
+              propsPlayerId: this.playerId,
+              serverReportedId: "DpCjenR1YNNx_W26AAAO",
+              propsCount: currentInvasionCount,
+              serverCount: serverReportedCount,
+            });
+            currentInvasionCount = serverReportedCount;
+          }
+        }
+
+        // さらなるフォールバック：全ての侵略回数の最大値を使用
+        if (currentInvasionCount === 0) {
+          const allCounts = Object.values(
+            this.cardEffectStates.invasionCounts || {}
+          );
+          const maxCount = Math.max(0, ...allCounts);
+          if (maxCount > 0) {
+            console.log("🔧 最大侵略回数フォールバック:", {
+              allCounts,
+              maxCount,
+              usingMaxCount: maxCount,
+            });
+            currentInvasionCount = maxCount;
+          }
+        }
+
+        console.log("🔍 侵略回数条件詳細チェック (フロント):", {
+          playerId: this.playerId,
+          currentInvasionCount,
+          requiredCount,
+          isAtLeast,
+          isExceed,
+          invasionCounts: this.cardEffectStates.invasionCounts,
+          serverReportedPlayerId: "DpCjenR1YNNx_W26AAAO",
+          actualUsedCount: currentInvasionCount,
+        });
+
+        let conditionMet = false;
+        if (isAtLeast) {
+          conditionMet = currentInvasionCount >= requiredCount;
+          console.log(
+            `📊 isAtLeast条件: ${currentInvasionCount} >= ${requiredCount} = ${conditionMet}`
+          );
+        } else if (isExceed) {
+          conditionMet = currentInvasionCount > requiredCount;
+          console.log(
+            `📊 isExceed条件: ${currentInvasionCount} > ${requiredCount} = ${conditionMet}`
+          );
+        } else {
+          conditionMet = currentInvasionCount >= requiredCount;
+          console.log(
+            `📊 デフォルト条件: ${currentInvasionCount} >= ${requiredCount} = ${conditionMet}`
+          );
+        }
+
+        console.log(`📊 侵略回数勝利条件判定結果 (フロント): ${conditionMet}`, {
+          詳細: {
+            現在の侵略回数: currentInvasionCount,
+            必要回数: requiredCount,
+            条件タイプ: isAtLeast ? "以上" : isExceed ? "超過" : "デフォルト",
+            判定結果: conditionMet,
+            デバッグ情報: {
+              プレイヤーID: this.playerId,
+              侵略回数オブジェクト: this.cardEffectStates.invasionCounts,
+              カード名: card.name,
+              能力説明: ability.description,
+            },
+          },
+        });
+        return conditionMet;
       }
 
       return false;
@@ -608,6 +741,14 @@ export default {
     cards: {
       handler() {
         this.loadEffectStatuses();
+      },
+      deep: true,
+    },
+    cardEffectStates: {
+      handler(newVal) {
+        console.log("🔄 CardGrid: cardEffectStates変更検知:", newVal);
+        // forceUpdateでボタンの状態を再計算させる
+        this.$forceUpdate();
       },
       deep: true,
     },

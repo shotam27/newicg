@@ -1,6 +1,14 @@
 <template>
-  <div class="message-log" :class="{ minimized: isMinimized }">
-    <div class="message-header" @click="$emit('toggle-log')">
+  <div 
+    class="message-log" 
+    :class="{ minimized: isMinimized }"
+    :style="{ top: position.y + 'px', left: position.x + 'px' }"
+  >
+    <div 
+      class="message-header" 
+      @click="$emit('toggle-log')"
+      @mousedown="startDrag"
+    >
       <span>メッセージ</span>
       <button class="minimize-btn" :class="{ rotated: isMinimized }">▼</button>
     </div>
@@ -30,14 +38,74 @@ export default {
       default: false,
     },
   },
+  data() {
+    return {
+      position: {
+        x: window.innerWidth - 370, // デフォルト位置（右端から少し離れた場所）
+        y: 20
+      },
+      isDragging: false,
+      dragOffset: { x: 0, y: 0 }
+    };
+  },
+  mounted() {
+    // グローバルイベントリスナーを追加
+    document.addEventListener('mousemove', this.handleDrag);
+    document.addEventListener('mouseup', this.stopDrag);
+  },
+  beforeUnmount() {
+    // イベントリスナーを削除
+    document.removeEventListener('mousemove', this.handleDrag);
+    document.removeEventListener('mouseup', this.stopDrag);
+  },
+  methods: {
+    startDrag(event) {
+      // 最小化ボタンのクリックの場合はドラッグを開始しない
+      if (event.target.classList.contains('minimize-btn')) {
+        return;
+      }
+      
+      this.isDragging = true;
+      const rect = this.$el.getBoundingClientRect();
+      this.dragOffset.x = event.clientX - rect.left;
+      this.dragOffset.y = event.clientY - rect.top;
+      
+      // ドラッグ中はポインターイベントを無効化
+      document.body.style.userSelect = 'none';
+      this.$el.style.cursor = 'grabbing';
+      
+      // toggle-logイベントの発火を防ぐ
+      event.stopPropagation();
+    },
+    
+    handleDrag(event) {
+      if (!this.isDragging) return;
+      
+      const newX = event.clientX - this.dragOffset.x;
+      const newY = event.clientY - this.dragOffset.y;
+      
+      // 画面境界チェック
+      const maxX = window.innerWidth - this.$el.offsetWidth;
+      const maxY = window.innerHeight - this.$el.offsetHeight;
+      
+      this.position.x = Math.max(0, Math.min(maxX, newX));
+      this.position.y = Math.max(0, Math.min(maxY, newY));
+    },
+    
+    stopDrag() {
+      if (this.isDragging) {
+        this.isDragging = false;
+        document.body.style.userSelect = '';
+        this.$el.style.cursor = '';
+      }
+    }
+  }
 };
 </script>
 
 <style scoped>
 .message-log {
   position: fixed;
-  top: 20px;
-  right: 20px;
   width: 350px;
   background: white;
   border: 2px solid #e0e0e0;
@@ -58,7 +126,7 @@ export default {
   color: white;
   font-weight: 600;
   border-radius: 10px 10px 0 0;
-  cursor: pointer;
+  cursor: grab;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -67,6 +135,10 @@ export default {
 
 .message-header:hover {
   background: linear-gradient(135deg, #5f4fcf, #9187fc);
+}
+
+.message-header:active {
+  cursor: grabbing;
 }
 
 .minimize-btn {

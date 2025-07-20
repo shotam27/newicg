@@ -1,7 +1,7 @@
 <template>
   <div class="lobby">
     <div class="lobby-content">
-      <h1>🎴 ICG カードゲーム</h1>
+      <h1>生き物カードゲーム</h1>
       <p>オークション型対戦カードゲーム</p>
 
       <!-- マッチング中の表示 -->

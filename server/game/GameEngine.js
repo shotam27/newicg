@@ -494,9 +494,9 @@ class GameEngine extends EventEmitter {
       return;
     }
 
-    // 相手カード選択が必要な効果かチェック
-    if (this.needsTargetSelection(ability)) {
-      console.log('対象選択が必要な効果です');
+    // 相手カード選択が必要な効果かチェック（従来方式）
+    if (this.needsTargetSelection(ability) && !ability.description.includes('回復することで')) {
+      console.log('対象選択が必要な効果です（従来方式）');
       this.startTargetSelection(player, card, ability, card.id, abilityIndex);
       return;
     }
@@ -513,6 +513,34 @@ class GameEngine extends EventEmitter {
     console.log('アビリティ実行開始:', { player: player.name, card: card.name, ability: ability.description });
     const result = this.cardEffects.executeAbility(player, card, ability, card.id, abilityIndex);
     console.log('アビリティ実行結果:', result);
+    
+    // needsTarget: true の場合は対象選択を開始
+    if (result.needsTarget) {
+      console.log('CardEffectsからneedsTarget=trueが返されました、対象選択を開始します');
+      this.phase = 'target-selection';
+      this.pendingAbility = { player, card, ability, cardId: card.id, abilityIndex };
+      
+      // validTargets が返されている場合はそれを使用、なければデフォルト取得
+      const validTargets = result.validTargets || this.getValidTargets(ability, this.players.find(p => p.id !== player.id));
+      
+      if (validTargets.length === 0) {
+        console.log('有効な対象がありません');
+        this.phase = 'playing';
+        this.pendingAbility = null;
+        player.socket.emit('no-valid-targets', {
+          message: '対象となるカードがありません'
+        });
+        return;
+      }
+      
+      // プレイヤーに対象選択を要求
+      player.socket.emit('select-target', {
+        message: result.message,
+        validTargets: validTargets,
+        ability: ability
+      });
+      return;
+    }
     
     if (result.success) {
       card.isFatigued = true; // プレイしたカードは疲労する
@@ -534,12 +562,22 @@ class GameEngine extends EventEmitter {
         this.triggerReactionEffects(opponent, ability, player);
       }
 
-      // 勝利条件チェック - 勝利効果使用時点で勝利
+      // 勝利条件チェック - 勝利効果使用時に条件をチェック
       if (ability.type === '勝利') {
-        console.log('勝利条件発動!');
-        this.endGame(player);
-        return;
+        console.log('勝利条件チェック開始...');
+        const victoryResult = this.cardEffects.checkVictoryCondition(player, ability, card);
+        if (victoryResult && victoryResult.victory) {
+          console.log('勝利条件達成!', victoryResult.message);
+          this.endGame(player);
+          return;
+        } else {
+          console.log('勝利条件未達成:', victoryResult?.message || '条件を満たしていません');
+          // 勝利条件が満たされていない場合は何もしない（能力使用は成功とする）
+        }
       }
+
+      // 盤面変化後の勝利効果使用可能状態チェック
+      this.checkAvailableVictoryEffects();
     } else {
       console.log('アビリティ使用失敗:', result.message);
       
@@ -571,6 +609,7 @@ class GameEngine extends EventEmitter {
     return description.includes('疲労させる') || 
            description.includes('追放する') || 
            description.includes('選択') ||
+           description.includes('回復することで') ||  // ウツボカズラの効果を追加
            (description.includes('相手') && (description.includes('カード') || description.includes('フィールド')));
   }
 
@@ -659,6 +698,9 @@ class GameEngine extends EventEmitter {
     if (description.includes('敵のアリを疲労させる')) {
       // アリ（ant）かつアクティブなカードが対象
       targets = opponent.field.filter(card => card.id === 'ant' && !card.isFatigued);
+    } else if (description.includes('回復することで')) {
+      // ウツボカズラの効果：疲労した敵カードが対象
+      targets = opponent.field.filter(card => card.isFatigued);
     } else if (description.includes('疲労させる') && (description.includes('1匹') || description.includes('1体'))) {
       // アクティブな相手カードが対象（条件付きも含む）
       targets = opponent.field.filter(card => !card.isFatigued);
@@ -1167,14 +1209,27 @@ class GameEngine extends EventEmitter {
     
     // ターン開始時処理
     this.players.forEach(player => {
+      // Fun Token end-of-turn effect: pay 1 per token, reduce IP by 1 per token
+      if (player.funTokens && player.funTokens > 0) {
+        const totalCost = player.funTokens;
+        if (player.points >= totalCost) {
+          player.points -= totalCost;
+          player.ipIncrease = Math.max(0, (player.ipIncrease || 10) - totalCost);
+          console.log(`${player.name}のフントークン効果: ${totalCost}IP支払い、増加IP-${totalCost}`);
+        } else {
+          // Not enough points: pay as much as possible, set points to 0, reduce IP accordingly
+          const paid = Math.min(player.points, totalCost);
+          player.points -= paid;
+          player.ipIncrease = Math.max(0, (player.ipIncrease || 10) - paid);
+          console.log(`${player.name}のフントークン効果: ${paid}IP支払い（不足）、増加IP-${paid}`);
+        }
+      }
       // 増加IPに基づいてポイント支給
       player.points += player.ipIncrease || 10;
       player.hasActed = false; // 行動フラグをリセット
-      
       // 増加IPを10にリセット
       player.ipIncrease = 10;
       console.log(`${player.name}の増加IPを10にリセット`);
-      
       // カード疲労回復
       player.field.forEach(card => {
         if (card.isFatigued) {
@@ -1266,7 +1321,8 @@ class GameEngine extends EventEmitter {
         }
       },
       neutralField: this.neutralField,
-      exileField: this.exileField
+      exileField: this.exileField,
+      cardEffectStates: this.cardEffects.getEffectStates() // カード効果状態を追加
     };
 
     // 対戦相手ががいる場合のみ追加
@@ -1907,6 +1963,60 @@ class GameEngine extends EventEmitter {
       console.error('デバッグ状態設定エラー:', error);
       return { success: false, message: `状態設定エラー: ${error.message}` };
     }
+  }
+
+  // 全プレイヤーの勝利効果使用可能状態をチェック
+  checkAvailableVictoryEffects() {
+    console.log('🔍 勝利効果使用可能状態チェック開始...');
+    
+    const availableVictoryEffects = [];
+    
+    for (const player of this.players) {
+      // プレイヤーのフィールドにある全カードの勝利効果をチェック
+      for (const card of player.field) {
+        if (card.abilities) {
+          for (const ability of card.abilities) {
+            if (ability.type === '勝利') {
+              console.log('🎯 勝利効果発見:', { 
+                player: player.name, 
+                card: card.name, 
+                condition: ability.description 
+              });
+              
+              // 勝利条件をチェック（勝利はしない）
+              const victoryResult = this.cardEffects.checkVictoryCondition(player, ability, card, true);
+              const isAvailable = victoryResult && victoryResult.success;
+              
+              console.log('🔍 勝利効果使用可能判定:', {
+                player: player.name,
+                card: card.name,
+                isAvailable: isAvailable,
+                message: victoryResult?.message
+              });
+              
+              if (isAvailable) {
+                availableVictoryEffects.push({
+                  playerId: player.id,
+                  playerName: player.name,
+                  cardName: card.name,
+                  cardInstanceId: card.fieldId,
+                  abilityIndex: card.abilities.indexOf(ability),
+                  condition: ability.description
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // 勝利効果が使用可能になったプレイヤーに通知
+    if (availableVictoryEffects.length > 0) {
+      console.log('✨ 使用可能な勝利効果:', availableVictoryEffects);
+      this.emit('victory-effects-available', availableVictoryEffects);
+    }
+    
+    console.log('✅ 勝利効果使用可能状態チェック完了');
   }
 }
 

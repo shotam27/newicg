@@ -59,8 +59,8 @@
       "cardId": "cactus",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-19T15:07:20.515Z",
-      "testCount": 23,
+      "lastTested": "2025-07-20T03:44:46.020Z",
+      "testCount": 24,
       "notes": "",
       "reportedBy": [
         "gsgg",
@@ -82,7 +82,8 @@
         "adw",
         "dwad",
         "dawdw",
-        "gs"
+        "gs",
+        "fsefse"
       ]
     },
     "bee_1": {
@@ -183,8 +184,8 @@
       "cardId": "tulip",
       "abilityIndex": 1,
       "status": "working",
-      "lastTested": "2025-07-19T17:44:12.932Z",
-      "testCount": 15,
+      "lastTested": "2025-07-20T09:22:24.420Z",
+      "testCount": 21,
       "notes": "",
       "reportedBy": [
         "fafa",
@@ -197,21 +198,32 @@
         "fefef",
         "sdsad",
         "dwda",
-        "dwad"
+        "dwad",
+        "egs",
+        "drg",
+        "gweag",
+        "fsef",
+        "ddv",
+        "feaf"
       ]
     },
     "tulip_2": {
       "cardId": "tulip",
       "abilityIndex": 2,
       "status": "working",
-      "lastTested": "2025-07-18T15:25:45.024Z",
-      "testCount": 6,
+      "lastTested": "2025-07-20T09:22:24.422Z",
+      "testCount": 11,
       "notes": "",
       "reportedBy": [
         "fafa",
         "fsf",
         "dada",
-        "fefe"
+        "fefe",
+        "drg",
+        "gweag",
+        "fsef",
+        "ddv",
+        "feaf"
       ]
     },
     "dugong_0": {
@@ -229,8 +241,8 @@
       "cardId": "gazelle",
       "abilityIndex": 0,
       "status": "working",
-      "lastTested": "2025-07-19T18:06:02.873Z",
-      "testCount": 19,
+      "lastTested": "2025-07-20T09:55:21.280Z",
+      "testCount": 22,
       "notes": "",
       "reportedBy": [
         "dada",
@@ -245,20 +257,28 @@
         "fefe",
         "sef",
         "player2",
-        "seg"
+        "seg",
+        "fsef",
+        "bzdb",
+        "gsga"
       ]
     },
     "tulip_0": {
       "cardId": "tulip",
       "abilityIndex": 0,
       "status": "working",
-      "lastTested": "2025-07-19T11:07:19.916Z",
-      "testCount": 12,
+      "lastTested": "2025-07-20T09:22:57.201Z",
+      "testCount": 158,
       "notes": "",
       "reportedBy": [
         "user",
         "dada",
-        "hthd"
+        "hthd",
+        "drg",
+        "gweag",
+        "fsef",
+        "ddv",
+        "feaf"
       ]
     },
     "tulip_3": {
@@ -276,9 +296,9 @@
     "cactus_2": {
       "cardId": "cactus",
       "abilityIndex": 2,
-      "status": "broken",
-      "lastTested": "2025-07-19T14:49:48.258Z",
-      "testCount": 51,
+      "status": "working",
+      "lastTested": "2025-07-20T03:44:54.261Z",
+      "testCount": 57,
       "notes": "",
       "reportedBy": [
         "fgf",
@@ -293,7 +313,8 @@
         "dwda",
         "dwad",
         "adw",
-        "dawdw"
+        "dawdw",
+        "fsefse"
       ]
     },
     "gazelle_1": {
@@ -312,8 +333,8 @@
       "cardId": "okapi",
       "abilityIndex": 0,
       "status": "broken",
-      "lastTested": "2025-07-19T08:40:30.267Z",
-      "testCount": 11,
+      "lastTested": "2025-07-20T09:35:23.856Z",
+      "testCount": 18,
       "notes": "",
       "reportedBy": [
         "fef",
@@ -324,15 +345,21 @@
         "fedfe",
         "fefe",
         "feef",
-        "ddw"
+        "ddw",
+        "egs",
+        "drg",
+        "user",
+        "faf",
+        "feaf",
+        "fesfseeg"
       ]
     },
     "ant_0": {
       "cardId": "ant",
       "abilityIndex": 0,
       "status": "broken",
-      "lastTested": "2025-07-19T17:52:01.974Z",
-      "testCount": 12,
+      "lastTested": "2025-07-20T10:03:05.416Z",
+      "testCount": 24,
       "notes": "",
       "reportedBy": [
         "ggg",
@@ -344,15 +371,26 @@
         "dadw",
         "fff",
         "fes",
-        "sef"
+        "sef",
+        "fawf",
+        "sgse",
+        "sfawf",
+        "dawdw",
+        "dwa",
+        "vzdv",
+        "afwf",
+        "segeg",
+        "esffes",
+        "dawd",
+        "fafw"
       ]
     },
     "anteater_0": {
       "cardId": "anteater",
       "abilityIndex": 0,
       "status": "broken",
-      "lastTested": "2025-07-19T18:06:02.871Z",
-      "testCount": 12,
+      "lastTested": "2025-07-20T02:39:55.679Z",
+      "testCount": 14,
       "notes": "",
       "reportedBy": [
         "ggg",
@@ -362,7 +400,9 @@
         "grgr",
         "dwad",
         "daw",
-        "af"
+        "af",
+        "fsefsf",
+        "wafw"
       ]
     },
     "ant_2": {
@@ -494,8 +534,163 @@
       "reportedBy": [
         "user"
       ]
+    },
+    "anteater_3": {
+      "cardId": "anteater",
+      "abilityIndex": 3,
+      "status": "broken",
+      "lastTested": "2025-07-20T02:07:16.630Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "fsefsf"
+      ]
+    },
+    "ant_3": {
+      "cardId": "ant",
+      "abilityIndex": 3,
+      "status": "working",
+      "lastTested": "2025-07-20T04:03:01.065Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "okapi_3": {
+      "cardId": "okapi",
+      "abilityIndex": 3,
+      "status": "working",
+      "lastTested": "2025-07-20T04:04:21.659Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "bee_3": {
+      "cardId": "bee",
+      "abilityIndex": 3,
+      "status": "working",
+      "lastTested": "2025-07-20T04:06:30.009Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "pitcherplant_0": {
+      "cardId": "pitcherplant",
+      "abilityIndex": 0,
+      "status": "working",
+      "lastTested": "2025-07-20T08:58:28.339Z",
+      "testCount": 8,
+      "notes": "",
+      "reportedBy": [
+        "segs",
+        "gesge",
+        "ｇｓｄｇ",
+        "seg",
+        "fes",
+        "fa",
+        "segeg"
+      ]
+    },
+    "pitcherplant_1": {
+      "cardId": "pitcherplant",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-20T05:32:09.418Z",
+      "testCount": 3,
+      "notes": "",
+      "reportedBy": [
+        "segs"
+      ]
+    },
+    "skunk_1": {
+      "cardId": "skunk",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-20T10:03:14.824Z",
+      "testCount": 55,
+      "notes": "",
+      "reportedBy": [
+        "sfsswa",
+        "user",
+        "fs",
+        "faf",
+        "gesg",
+        "fsef",
+        "dwadwad",
+        "fwa",
+        "dawdw",
+        "dawd",
+        "dwafawf",
+        "zsvfs",
+        "awsfa",
+        "dwafa"
+      ]
+    },
+    "pitcherplant_2": {
+      "cardId": "pitcherplant",
+      "abilityIndex": 2,
+      "status": "working",
+      "lastTested": "2025-07-20T08:22:51.327Z",
+      "testCount": 8,
+      "notes": "",
+      "reportedBy": [
+        "gesge",
+        "ｇｓｄｇ",
+        "seg",
+        "fes",
+        "fa"
+      ]
+    },
+    "pitcherplant_3": {
+      "cardId": "pitcherplant",
+      "abilityIndex": 3,
+      "status": "working",
+      "lastTested": "2025-07-20T08:27:52.124Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "fly_1": {
+      "cardId": "fly",
+      "abilityIndex": 1,
+      "status": "working",
+      "lastTested": "2025-07-20T08:28:29.256Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "fly_0": {
+      "cardId": "fly",
+      "abilityIndex": 0,
+      "status": "working",
+      "lastTested": "2025-07-20T08:33:23.878Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "user"
+      ]
+    },
+    "skunk_3": {
+      "cardId": "skunk",
+      "abilityIndex": 3,
+      "status": "working",
+      "lastTested": "2025-07-20T10:03:22.607Z",
+      "testCount": 1,
+      "notes": "",
+      "reportedBy": [
+        "dwafa"
+      ]
     }
   },
-  "lastUpdated": "2025-07-19T18:08:38.993Z",
+  "lastUpdated": "2025-07-20T10:03:22.607Z",
   "version": "1.0"
 }
