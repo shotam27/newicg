@@ -4,6 +4,7 @@ nixPkgs = ["nodejs-18_x"]
 
 [phases.install]
 cmds = [
+    "npm ci",
     "cd client && npm ci",
     "cd ../server && npm ci", 
     "cd ../admin && npm ci"
