@@ -1,0 +1,16 @@
+# nixpacks.toml
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "npm"]
+
+[phases.install]
+cmds = [
+    "cd client && npm ci",
+    "cd ../server && npm ci", 
+    "cd ../admin && npm ci"
+]
+
+[phases.build]
+cmds = ["cd client && npm run build"]
+
+[start]
+cmd = "cd server && npm start"
