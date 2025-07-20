@@ -255,7 +255,13 @@ export default {
 
   methods: {
     initializeSocket() {
-      this.socket = io("http://localhost:3001");
+      // 本番環境では同じホストを使用、開発環境ではlocalhost:3001
+      const socketUrl = process.env.NODE_ENV === 'production' 
+        ? window.location.origin 
+        : "http://localhost:3001";
+      
+      console.log('Socket.IO connecting to:', socketUrl);
+      this.socket = io(socketUrl);
 
       this.socket.on("connect", () => {
         this.isConnected = true;
