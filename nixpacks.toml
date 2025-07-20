@@ -11,7 +11,7 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["cd client && npm run build"]
+cmds = ["npm run build"]
 
 [start]
-cmd = "cd server && npm start"
+cmd = "npm start"
