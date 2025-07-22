@@ -4,6 +4,7 @@
     <TurnInfo
       :current-turn="currentTurn"
       :current-phase="currentPhase"
+      :is-my-turn="currentTurn === playerName"
       :player-name="playerName"
       :player-i-p="playerIP"
       :player-i-p-increase="playerIPIncrease"

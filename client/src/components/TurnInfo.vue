@@ -1,23 +1,40 @@
 <template>
   <div class="turn-info">
-    <div class="turn-display">
-      <span class="turn-label">ターン {{ currentTurn }}</span>
-      <span class="phase-label">{{ currentPhase }}</span>
-    </div>
-    <div class="players-info">
-      <div class="player-info">
-        <span class="player-name">{{ playerName }}</span>
-        <div class="ip-section">
-          <span class="ip-display">IP: {{ playerIP }}</span>
-          <span class="ip-increase">+{{ playerIPIncrease }}/ターン</span>
-        </div>
+    <!-- モバイル用3段表示 -->
+    <div class="mobile-turn-display">
+      <div class="turn-player">
+        {{ isMyTurn ? playerName : opponentName || "対戦相手" }}のターン
       </div>
-      <div v-if="opponentName" class="opponent-info">
-        <span class="vs-label">vs</span>
-        <span class="opponent-name">{{ opponentName }}</span>
-        <div class="ip-section">
-          <span class="opponent-ip">IP: {{ opponentIP }}</span>
-          <span class="ip-increase">+{{ opponentIPIncrease }}/ターン</span>
+      <div class="turn-phase">ターン{{ currentTurn }} - {{ currentPhase }}</div>
+      <div class="turn-status">
+        {{ playerName }}: {{ playerIP }}IP (+{{ playerIPIncrease }}) |
+        {{ opponentName || "相手" }}: {{ opponentIP }}IP (+{{
+          opponentIPIncrease
+        }})
+      </div>
+    </div>
+
+    <!-- デスクトップ用従来表示 -->
+    <div class="desktop-turn-display">
+      <div class="turn-display">
+        <span class="turn-label">ターン {{ currentTurn }}</span>
+        <span class="phase-label">{{ currentPhase }}</span>
+      </div>
+      <div class="players-info">
+        <div class="player-info">
+          <span class="player-name">{{ playerName }}</span>
+          <div class="ip-section">
+            <span class="ip-display">IP: {{ playerIP }}</span>
+            <span class="ip-increase">+{{ playerIPIncrease }}/ターン</span>
+          </div>
+        </div>
+        <div v-if="opponentName" class="opponent-info">
+          <span class="vs-label">vs</span>
+          <span class="opponent-name">{{ opponentName }}</span>
+          <div class="ip-section">
+            <span class="opponent-ip">IP: {{ opponentIP }}</span>
+            <span class="ip-increase">+{{ opponentIPIncrease }}/ターン</span>
+          </div>
         </div>
       </div>
     </div>
@@ -59,6 +76,10 @@ export default {
     opponentIPIncrease: {
       type: Number,
       default: 10,
+    },
+    isMyTurn: {
+      type: Boolean,
+      default: false,
     },
   },
 };
@@ -195,5 +216,65 @@ export default {
 .opponent-info .ip-increase {
   background: rgba(255, 87, 34, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* モバイル対応スタイル */
+@media screen and (max-width: 768px) {
+  .desktop-turn-display {
+    display: none;
+  }
+
+  .mobile-turn-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+  }
+
+  .turn-info {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    z-index: 999 !important;
+    padding: 8px 12px !important;
+    background: rgba(0, 0, 0, 0.9) !important;
+    color: white !important;
+    font-size: 10px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    border-radius: 0 !important;
+    transform: none !important;
+  }
+
+  .turn-player {
+    font-weight: bold !important;
+    margin-bottom: 2px !important;
+    font-size: 12px !important;
+  }
+
+  .turn-phase {
+    margin-bottom: 2px !important;
+    font-size: 10px !important;
+  }
+
+  .turn-status {
+    font-size: 9px !important;
+    opacity: 0.9 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+}
+
+@media screen and (min-width: 769px) {
+  .mobile-turn-display {
+    display: none;
+  }
+
+  .desktop-turn-display {
+    display: block;
+  }
 }
 </style>

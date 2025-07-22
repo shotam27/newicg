@@ -1,7 +1,10 @@
 <template>
   <div
     class="message-log"
-    :class="{ minimized: isMinimized }"
+    :class="{
+      minimized: isMinimized,
+      'mobile-show': isMobileVisible,
+    }"
     :style="{ top: position.y + 'px', left: position.x + 'px' }"
   >
     <div
@@ -34,6 +37,10 @@ export default {
       required: true,
     },
     isMinimized: {
+      type: Boolean,
+      default: false,
+    },
+    isMobileVisible: {
       type: Boolean,
       default: false,
     },

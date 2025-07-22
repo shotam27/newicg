@@ -14,9 +14,7 @@
         ターンパス
       </button>
       <!-- デバッグボタン -->
-      <button @click="debugSetIP" class="debug-btn">
-        デバッグ: IP40にセット
-      </button>
+      <button @click="debugSetIP" class="debug-btn">デバッグ</button>
     </div>
     <!-- その他のフェーズの場合 -->
     <div v-else class="other-actions">

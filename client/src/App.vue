@@ -91,6 +91,7 @@
     <MessageLog
       :messages="messages"
       :is-minimized="isMessageLogMinimized"
+      :is-mobile-visible="isMobileMessageVisible"
       @toggle-log="toggleMessageLog"
     />
 
@@ -129,6 +130,7 @@
     <MobileUIEnhancements
       :debug-mode="true"
       @toggle-debug="toggleDebugPanel"
+      @toggle-messages="toggleMessageLog"
       @show-game-info="showGameInfo"
       @show-help="showHelp"
       @card-preview="handleCardPreview"
@@ -222,6 +224,7 @@ export default {
       // メッセージ
       messages: [],
       isMessageLogMinimized: false,
+      isMobileMessageVisible: false,
 
       // ターン/フェーズ変更通知
       showTurnPhaseNotification: false,
@@ -974,7 +977,12 @@ export default {
     },
 
     toggleMessageLog() {
-      this.isMessageLogMinimized = !this.isMessageLogMinimized;
+      // モバイルの場合は専用表示を切り替え
+      if (window.innerWidth <= 768) {
+        this.isMobileMessageVisible = !this.isMobileMessageVisible;
+      } else {
+        this.isMessageLogMinimized = !this.isMessageLogMinimized;
+      }
     },
 
     // IPアニメーション表示
@@ -1122,9 +1130,9 @@ export default {
 
     handleSwipeAction(direction) {
       // スワイプアクション処理
-      if (direction === 'left') {
+      if (direction === "left") {
         this.addMessage("左スワイプ検出", "info");
-      } else if (direction === 'right') {
+      } else if (direction === "right") {
         this.addMessage("右スワイプ検出", "info");
       }
     },

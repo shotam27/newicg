@@ -1,45 +1,46 @@
 <template>
   <div class="mobile-ui-enhancements">
     <!-- モバイル専用フローティングメニュー -->
-    <div v-if="isMobile" class="mobile-floating-menu" :class="{ 'menu-open': showMobileMenu }">
-      <button 
+    <div
+      v-if="isMobile"
+      class="mobile-floating-menu"
+      :class="{ 'menu-open': showMobileMenu }"
+    >
+      <button
         class="mobile-menu-toggle"
         @click="toggleMobileMenu"
         :aria-label="showMobileMenu ? 'メニューを閉じる' : 'メニューを開く'"
       >
-        <span class="hamburger-icon" :class="{ 'active': showMobileMenu }">
+        <span class="hamburger-icon" :class="{ active: showMobileMenu }">
           <span></span>
           <span></span>
           <span></span>
         </span>
       </button>
-      
+
       <div v-if="showMobileMenu" class="mobile-menu-items">
-        <button 
-          v-if="debugMode" 
+        <button
+          v-if="debugMode"
           class="mobile-menu-item"
           @click="$emit('toggle-debug')"
         >
-          🔧 デバッグ
+          <i class="fas fa-wrench"></i>
         </button>
-        <button 
-          class="mobile-menu-item"
-          @click="$emit('show-game-info')"
-        >
-          ℹ️ 情報
+        <button class="mobile-menu-item" @click="$emit('toggle-messages')">
+          <i class="fas fa-comments"></i>
         </button>
-        <button 
-          class="mobile-menu-item"
-          @click="$emit('show-help')"
-        >
-          ❓ ヘルプ
+        <button class="mobile-menu-item" @click="$emit('show-game-info')">
+          <i class="fas fa-info-circle"></i>
+        </button>
+        <button class="mobile-menu-item" @click="$emit('show-help')">
+          <i class="fas fa-question-circle"></i>
         </button>
       </div>
     </div>
 
     <!-- スマホ用カード詳細プレビュー -->
-    <div 
-      v-if="isMobile && previewCard" 
+    <div
+      v-if="isMobile && previewCard"
       class="mobile-card-preview"
       @click="hideCardPreview"
     >
@@ -50,13 +51,16 @@
         </div>
         <div class="preview-content">
           <div class="preview-cost">コスト: {{ previewCard.cost }}</div>
-          <div class="preview-effects" v-html="formatCardEffects(previewCard.effects)"></div>
+          <div
+            class="preview-effects"
+            v-html="formatCardEffects(previewCard.effects)"
+          ></div>
         </div>
       </div>
     </div>
 
     <!-- スマホ用スワイプジェスチャー検出エリア -->
-    <div 
+    <div
       v-if="isMobile"
       class="swipe-detector"
       @touchstart="handleTouchStart"
@@ -68,14 +72,20 @@
 
 <script>
 export default {
-  name: 'MobileUIEnhancements',
+  name: "MobileUIEnhancements",
   props: {
     debugMode: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
-  emits: ['toggle-debug', 'show-game-info', 'show-help', 'card-preview', 'swipe-action'],
+  emits: [
+    "toggle-debug",
+    "show-game-info",
+    "show-help",
+    "card-preview",
+    "swipe-action",
+  ],
   data() {
     return {
       isMobile: false,
@@ -83,116 +93,120 @@ export default {
       previewCard: null,
       touchStartX: 0,
       touchStartY: 0,
-      touchStartTime: 0
-    }
+      touchStartTime: 0,
+    };
   },
   mounted() {
-    this.checkMobileDevice()
-    window.addEventListener('resize', this.checkMobileDevice)
-    
+    this.checkMobileDevice();
+    window.addEventListener("resize", this.checkMobileDevice);
+
     // 長押しでカード詳細表示のイベントリスナー
-    document.addEventListener('contextmenu', this.handleContextMenu)
+    document.addEventListener("contextmenu", this.handleContextMenu);
   },
   beforeUnmount() {
-    window.removeEventListener('resize', this.checkMobileDevice)
-    document.removeEventListener('contextmenu', this.handleContextMenu)
+    window.removeEventListener("resize", this.checkMobileDevice);
+    document.removeEventListener("contextmenu", this.handleContextMenu);
   },
   methods: {
     checkMobileDevice() {
-      this.isMobile = window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      this.isMobile =
+        window.innerWidth <= 768 ||
+        /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        );
     },
-    
+
     toggleMobileMenu() {
-      this.showMobileMenu = !this.showMobileMenu
+      this.showMobileMenu = !this.showMobileMenu;
     },
-    
+
     handleContextMenu(event) {
       if (this.isMobile) {
-        event.preventDefault()
+        event.preventDefault();
         // カード要素の場合は詳細表示
-        const cardElement = event.target.closest('.card')
+        const cardElement = event.target.closest(".card");
         if (cardElement && cardElement.dataset.cardData) {
-          this.showCardPreview(JSON.parse(cardElement.dataset.cardData))
+          this.showCardPreview(JSON.parse(cardElement.dataset.cardData));
         }
       }
     },
-    
+
     showCardPreview(card) {
-      this.previewCard = card
-      this.$emit('card-preview', card)
+      this.previewCard = card;
+      this.$emit("card-preview", card);
     },
-    
+
     hideCardPreview() {
-      this.previewCard = null
+      this.previewCard = null;
     },
-    
+
     handleTouchStart(event) {
-      const touch = event.touches[0]
-      this.touchStartX = touch.clientX
-      this.touchStartY = touch.clientY
-      this.touchStartTime = Date.now()
+      const touch = event.touches[0];
+      this.touchStartX = touch.clientX;
+      this.touchStartY = touch.clientY;
+      this.touchStartTime = Date.now();
     },
-    
+
     handleTouchMove(event) {
       // スクロール防止（必要に応じて）
       if (this.showMobileMenu) {
-        event.preventDefault()
+        event.preventDefault();
       }
     },
-    
+
     handleTouchEnd(event) {
-      const touch = event.changedTouches[0]
-      const deltaX = touch.clientX - this.touchStartX
-      const deltaY = touch.clientY - this.touchStartY
-      const deltaTime = Date.now() - this.touchStartTime
-      
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - this.touchStartX;
+      const deltaY = touch.clientY - this.touchStartY;
+      const deltaTime = Date.now() - this.touchStartTime;
+
       // スワイプジェスチャーの検出（150px以上、500ms以内）
       if (Math.abs(deltaX) > 150 && deltaTime < 500 && Math.abs(deltaY) < 100) {
-        const direction = deltaX > 0 ? 'right' : 'left'
-        this.$emit('swipe-action', direction)
-        
+        const direction = deltaX > 0 ? "right" : "left";
+        this.$emit("swipe-action", direction);
+
         // 右スワイプでメニュー開閉
-        if (direction === 'right' && !this.showMobileMenu) {
-          this.showMobileMenu = true
-        } else if (direction === 'left' && this.showMobileMenu) {
-          this.showMobileMenu = false
+        if (direction === "right" && !this.showMobileMenu) {
+          this.showMobileMenu = true;
+        } else if (direction === "left" && this.showMobileMenu) {
+          this.showMobileMenu = false;
         }
       }
     },
-    
+
     formatCardEffects(effects) {
-      if (!effects) return ''
-      
+      if (!effects) return "";
+
       // カード効果テキストをモバイル用にフォーマット
       return effects
-        .replace(/\n/g, '<br>')
-        .replace(/【([^】]+)】/g, '<strong>【$1】</strong>')
-        .replace(/★([^★]+)★/g, '<em>★$1★</em>')
-    }
-  }
-}
+        .replace(/\n/g, "<br>")
+        .replace(/【([^】]+)】/g, "<strong>【$1】</strong>")
+        .replace(/★([^★]+)★/g, "<em>★$1★</em>");
+    },
+  },
+};
 </script>
 
 <style scoped>
 /* モバイルフローティングメニュー */
 .mobile-floating-menu {
   position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 1001;
+  top: 10px; /* TurnInfoの上に配置 */
+  left: 15px;
+  z-index: 1002; /* TurnInfoより上に */
 }
 
 .mobile-menu-toggle {
-  width: 50px;
-  height: 50px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.8);
-  border: none;
+  background: rgba(255, 255, 255, 0.9); /* 白色系に変更 */
+  border: 2px solid rgba(0, 0, 0, 0.1);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s;
 }
 
@@ -212,7 +226,7 @@ export default {
 .hamburger-icon span {
   width: 100%;
   height: 2px;
-  background: white;
+  background: #333; /* 濃いグレーに変更 */
   transition: all 0.3s;
 }
 
@@ -231,25 +245,28 @@ export default {
 /* メニューアイテム */
 .mobile-menu-items {
   position: absolute;
-  top: 60px;
+  top: 54px;
   left: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   animation: slideIn 0.3s ease-out;
 }
 
 .mobile-menu-item {
-  padding: 10px 15px;
+  width: 40px;
+  height: 40px;
   background: rgba(0, 0, 0, 0.8);
   color: white;
   border: none;
-  border-radius: 25px;
+  border-radius: 50%;
   cursor: pointer;
-  white-space: nowrap;
-  font-size: 14px;
+  font-size: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .mobile-menu-item:active {
