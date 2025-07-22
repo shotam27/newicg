@@ -2,6 +2,10 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { io } from 'socket.io-client'
 
+// CSS imports
+import './styles/global.css'
+import './styles/mobile.css'
+
 // Socket.io接続設定
 const socket = io(import.meta.env.PROD ? '' : 'http://localhost:3001', {
   transports: ['websocket', 'polling']

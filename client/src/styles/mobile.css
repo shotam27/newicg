@@ -1,0 +1,401 @@
+/* Mobile-responsive styles for ICG Card Game */
+
+/* Viewport meta tag should be in index.html:
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"> */
+
+/* Mobile breakpoints */
+@media screen and (max-width: 768px) {
+  /* Base mobile styles */
+  body {
+    font-size: 14px;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  /* Game container adjustments */
+  .game-container {
+    padding: 8px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Connection status mobile styling */
+  .connection-status {
+    position: fixed;
+    top: 5px;
+    right: 5px;
+    z-index: 1000;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 12px;
+  }
+
+  /* Lobby mobile adjustments */
+  .lobby-container {
+    text-align: center;
+    padding: 20px 10px;
+  }
+
+  .lobby-container h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+
+  .lobby-container button {
+    width: 90%;
+    max-width: 300px;
+    padding: 12px;
+    font-size: 16px;
+    margin: 8px 0;
+    border-radius: 8px;
+  }
+
+  /* Game board mobile layout */
+  .game-board {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 5px;
+  }
+
+  /* Player info section - make horizontal on mobile */
+  .player-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+  .player-info h3 {
+    margin: 0;
+    font-size: 14px;
+  }
+
+  /* Turn info mobile styling */
+  .turn-info {
+    position: fixed;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 15px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* Card grid mobile optimizations */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 5px;
+    padding: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* Card mobile styling */
+  .card {
+    aspect-ratio: 2/3;
+    border-radius: 6px;
+    padding: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .card:active {
+    transform: scale(0.95);
+  }
+
+  .card.selected {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+  }
+
+  .card-title {
+    font-size: 9px;
+    font-weight: bold;
+    line-height: 1.1;
+    margin-bottom: 2px;
+  }
+
+  .card-cost {
+    font-size: 8px;
+    padding: 1px 3px;
+    border-radius: 3px;
+  }
+
+  .card-effects {
+    font-size: 7px;
+    line-height: 1.2;
+    flex-grow: 1;
+    overflow: hidden;
+  }
+
+  /* Field sections mobile layout */
+  .field-section {
+    margin-bottom: 10px;
+  }
+
+  .field-section h4 {
+    font-size: 12px;
+    margin: 5px 0;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+
+  /* Opponent field - at top */
+  .opponent-field {
+    order: 1;
+  }
+
+  /* Neutral field - in middle */
+  .neutral-field {
+    order: 2;
+  }
+
+  /* Player field - at bottom */
+  .player-field {
+    order: 3;
+  }
+
+  /* Action buttons mobile styling */
+  .action-buttons {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 998;
+  }
+
+  .action-buttons button {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    min-width: 60px;
+  }
+
+  /* Modal mobile adjustments */
+  .modal {
+    padding: 10px;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: 400px;
+    max-height: 90vh;
+    margin: 5vh auto;
+    padding: 15px;
+    border-radius: 12px;
+    overflow-y: auto;
+  }
+
+  .modal h3 {
+    font-size: 18px;
+    margin-bottom: 15px;
+  }
+
+  /* Card detail modal mobile */
+  .card-detail-modal .card-effects {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  /* Debug panel mobile */
+  .debug-panel {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .debug-section {
+    margin-bottom: 15px;
+  }
+
+  .debug-section h4 {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .debug-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .debug-buttons button {
+    flex: 1;
+    min-width: 120px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  /* Message log mobile */
+  .message-log {
+    position: fixed !important;
+    bottom: 60px;
+    right: 10px;
+    width: calc(100% - 20px);
+    max-width: 300px;
+    max-height: 150px;
+    z-index: 997;
+  }
+
+  .message-log.dragging {
+    /* Disable dragging on mobile */
+    transform: none !important;
+  }
+
+  .message-list {
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 11px;
+  }
+
+  /* Auction panel mobile */
+  .auction-panel {
+    position: fixed;
+    bottom: 70px;
+    left: 10px;
+    right: 10px;
+    z-index: 996;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .auction-panel h4 {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .bid-controls {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .bid-controls input {
+    flex: 1;
+    padding: 6px;
+    font-size: 14px;
+    border-radius: 4px;
+  }
+
+  .bid-controls button {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+
+  /* Touch-friendly scrollbars */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Tablet adjustments */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+  .card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+  }
+
+  .card {
+    min-height: 120px;
+    font-size: 11px;
+  }
+
+  .card-title {
+    font-size: 10px;
+  }
+
+  .card-effects {
+    font-size: 8px;
+  }
+}
+
+/* Landscape mobile adjustments */
+@media screen and (max-width: 768px) and (orientation: landscape) {
+  .game-board {
+    flex-direction: row;
+    gap: 5px;
+  }
+
+  .field-section {
+    flex: 1;
+    margin-bottom: 5px;
+  }
+
+  .card-grid {
+    max-height: 150px;
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+  }
+
+  .card {
+    min-height: 60px;
+    font-size: 8px;
+  }
+
+  .message-log {
+    max-height: 100px;
+    bottom: 45px;
+  }
+
+  .action-buttons {
+    bottom: 5px;
+  }
+
+  .turn-info {
+    top: 5px;
+    font-size: 10px;
+  }
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  .game-container {
+    /* Fix for iOS viewport units */
+    height: -webkit-fill-available;
+    min-height: -webkit-fill-available;
+  }
+
+  /* Prevent zoom on input focus */
+  input, textarea, select {
+    font-size: 16px;
+  }
+}

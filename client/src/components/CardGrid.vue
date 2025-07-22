@@ -12,6 +12,7 @@
           'player-card': fieldType === 'player-field',
           'neutral-card': fieldType === 'neutral-field',
         }"
+        :data-card-data="JSON.stringify(card)"
         @click="$emit('card-click', card)"
         @contextmenu.prevent="$emit('card-detail', card)"
       >

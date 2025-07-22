@@ -124,6 +124,16 @@
         />
       </div>
     </div>
+
+    <!-- モバイル UI 強化 -->
+    <MobileUIEnhancements
+      :debug-mode="true"
+      @toggle-debug="toggleDebugPanel"
+      @show-game-info="showGameInfo"
+      @show-help="showHelp"
+      @card-preview="handleCardPreview"
+      @swipe-action="handleSwipeAction"
+    />
   </div>
 </template>
 
@@ -135,6 +145,7 @@ import GameBoard from "./components/GameBoard.vue";
 import GameModals from "./components/GameModals.vue";
 import MessageLog from "./components/MessageLog.vue";
 import DebugPanel from "./components/DebugPanel.vue";
+import MobileUIEnhancements from "./components/MobileUIEnhancements.vue";
 
 export default {
   name: "App",
@@ -145,6 +156,7 @@ export default {
     GameModals,
     MessageLog,
     DebugPanel,
+    MobileUIEnhancements,
   },
   data() {
     return {
@@ -1090,6 +1102,31 @@ export default {
 
     closeDebugPanel() {
       this.showDebugPanel = false;
+    },
+
+    // モバイル UI 関連メソッド
+    showGameInfo() {
+      // ゲーム情報表示（今後実装）
+      this.addMessage("ゲーム情報機能は今後実装予定です", "info");
+    },
+
+    showHelp() {
+      // ヘルプ表示（今後実装）
+      this.addMessage("ヘルプ機能は今後実装予定です", "info");
+    },
+
+    handleCardPreview(card) {
+      // カードプレビュー処理
+      console.log("Card preview:", card);
+    },
+
+    handleSwipeAction(direction) {
+      // スワイプアクション処理
+      if (direction === 'left') {
+        this.addMessage("左スワイプ検出", "info");
+      } else if (direction === 'right') {
+        this.addMessage("右スワイプ検出", "info");
+      }
     },
   },
 
