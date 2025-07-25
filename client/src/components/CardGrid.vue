@@ -1,7 +1,19 @@
 <template>
   <div class="field-container" :class="fieldType">
-    <h3>{{ title }}</h3>
-    <div class="card-grid">
+    <div
+      class="field-header"
+      @click="cards.length > 0 ? toggleFieldVisibility() : null"
+    >
+      <h3>{{ title }}</h3>
+      <div
+        v-if="cards.length > 0"
+        class="dropdown-arrow"
+        :class="{ rotated: !isFieldVisible }"
+      >
+        ▼
+      </div>
+    </div>
+    <div class="card-grid" :class="{ collapsed: !isFieldVisible }">
       <div
         v-for="card in cards"
         :key="card.id + '-' + card.instanceId"
@@ -111,6 +123,7 @@ export default {
     return {
       effectStatusAPI: new EffectStatusAPI(),
       effectStatuses: {}, // カードID_アビリティインデックス をキーとするステータス
+      isFieldVisible: true, // フィールドの表示状態
     };
   },
   props: {
@@ -164,6 +177,9 @@ export default {
     },
   },
   methods: {
+    toggleFieldVisibility() {
+      this.isFieldVisible = !this.isFieldVisible;
+    },
     getCardCount(cardId) {
       return this.playerField.filter((card) => card.id === cardId).length;
     },
@@ -762,17 +778,60 @@ export default {
   margin-bottom: 30px;
 }
 
-.field-container h3 {
-  margin-bottom: 15px;
-  padding: 10px;
+.field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.3s ease;
   background: #e9ecef;
-  border-radius: 4px;
+  margin-bottom: 5px;
+  border-radius: 5px 5px 0 0;
+}
+
+.field-header:hover {
+  background: #f8f9fa;
+}
+
+/* カードがない場合のスタイル */
+.field-header:not(:has(.dropdown-arrow)) {
+  cursor: default;
+}
+
+.field-header:not(:has(.dropdown-arrow)):hover {
+  background: #e9ecef;
+}
+
+.field-container h3 {
+  padding: 10px;
+  flex: 1;
+}
+
+.dropdown-arrow {
+  padding: 10px 15px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #666;
+  transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(-90deg);
 }
 
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 15px;
+  max-height: 500px;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+.card-grid.collapsed {
+  max-height: 0;
+  opacity: 0;
 }
 
 .card {

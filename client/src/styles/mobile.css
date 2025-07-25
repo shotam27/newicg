@@ -156,6 +156,10 @@
     margin-bottom: 1px; /* 2px → 1px */
   }
 
+  .card-name {
+    font-size: 11px !important; /* 14px → 11px */
+  }
+
   .card-cost {
     font-size: 6px; /* 8px → 6px */
     padding: 1px 2px; /* 1px 3px → 1px 2px */
