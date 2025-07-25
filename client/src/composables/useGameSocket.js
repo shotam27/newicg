@@ -23,7 +23,25 @@ export function useGameSocket({
   const isConnected = ref(false);
 
   function initializeSocket() {
-    socket.value = io('http://localhost:3001');
+    // 環境に応じてSocket.IOサーバーのURLを設定
+    let socketUrl;
+    if (typeof window !== 'undefined') {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const hostname = window.location.hostname;
+      
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // ローカル開発環境
+        socketUrl = 'http://localhost:3001';
+      } else {
+        // 本番環境では同じホストの3001ポートを使用
+        socketUrl = `${window.location.protocol}//${hostname}:3001`;
+      }
+    } else {
+      // フォールバック
+      socketUrl = 'http://localhost:3001';
+    }
+
+    socket.value = io(socketUrl);
 
     socket.value.on('connect', () => {
       isConnected.value = true;

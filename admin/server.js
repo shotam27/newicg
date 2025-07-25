@@ -464,6 +464,80 @@ app.put('/api/effect-status/:id', authenticateToken, (req, res) => {
   });
 });
 
+// 認証なしの効果ステータスAPI（ゲームクライアント用）
+app.get('/api/effect-status/:cardId/:abilityIndex', (req, res) => {
+  const { cardId, abilityIndex } = req.params;
+  
+  db.get(`SELECT status, updated_at 
+          FROM card_effect_status 
+          WHERE card_id = ? AND ability_index = ?`,
+         [cardId, parseInt(abilityIndex)], (err, row) => {
+    if (err) {
+      console.error('効果ステータス取得エラー:', err);
+      return res.json({ status: 'unknown', error: err.message });
+    }
+    
+    if (!row) {
+      // デフォルトで unknown ステータスを返す
+      return res.json({ status: 'unknown' });
+    }
+    
+    res.json({ 
+      status: row.status, 
+      updatedAt: row.updated_at 
+    });
+  });
+});
+
+app.post('/api/effect-status/:cardId/:abilityIndex', (req, res) => {
+  const { cardId, abilityIndex } = req.params;
+  const { status, reportedBy } = req.body;
+  
+  if (!status || !['working', 'broken', 'unknown'].includes(status)) {
+    return res.status(400).json({ 
+      success: false, 
+      error: '有効なステータスを指定してください (working, broken, unknown)' 
+    });
+  }
+  
+  // 既存レコードをチェック
+  db.get(`SELECT id FROM card_effect_status 
+          WHERE card_id = ? AND ability_index = ?`,
+         [cardId, parseInt(abilityIndex)], (err, row) => {
+    if (err) {
+      console.error('効果ステータス確認エラー:', err);
+      return res.json({ success: false, error: err.message });
+    }
+    
+    if (row) {
+      // 更新
+      db.run(`UPDATE card_effect_status 
+              SET status = ?, reported_by = ?, updated_at = CURRENT_TIMESTAMP 
+              WHERE id = ?`,
+             [status, reportedBy || 'user', row.id], function(updateErr) {
+        if (updateErr) {
+          console.error('効果ステータス更新エラー:', updateErr);
+          return res.json({ success: false, error: updateErr.message });
+        }
+        res.json({ success: true, message: '効果ステータスを更新しました' });
+      });
+    } else {
+      // 新規作成
+      db.run(`INSERT INTO card_effect_status 
+              (card_id, ability_index, status, reported_by, updated_at) 
+              VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+             [cardId, parseInt(abilityIndex), status, reportedBy || 'user'], function(insertErr) {
+        if (insertErr) {
+          console.error('効果ステータス作成エラー:', insertErr);
+          return res.json({ success: false, error: insertErr.message });
+        }
+        res.json({ success: true, message: '効果ステータスを作成しました' });
+      });
+    }
+  });
+});
+
+// カード管理API（認証必要）
 // cards.jsonエクスポート
 app.get('/api/export', authenticateToken, (req, res) => {
   db.all('SELECT * FROM cards ORDER BY number ASC', (err, rows) => {

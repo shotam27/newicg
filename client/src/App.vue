@@ -274,11 +274,23 @@ export default {
 
   methods: {
     initializeSocket() {
-      // 本番環境では同じホストを使用、開発環境ではlocalhost:3001
-      const socketUrl =
-        process.env.NODE_ENV === "production"
-          ? window.location.origin
-          : "http://localhost:3001";
+      // 環境に応じてSocket.IOサーバーのURLを設定
+      let socketUrl;
+
+      if (typeof window !== "undefined") {
+        const hostname = window.location.hostname;
+
+        if (hostname === "localhost" || hostname === "127.0.0.1") {
+          // ローカル開発環境
+          socketUrl = "http://localhost:3001";
+        } else {
+          // 本番環境では同じホスト（ポート指定なし）を使用
+          socketUrl = window.location.origin;
+        }
+      } else {
+        // フォールバック
+        socketUrl = "http://localhost:3001";
+      }
 
       console.log("Socket.IO connecting to:", socketUrl);
       this.socket = io(socketUrl);
